@@ -38,6 +38,30 @@ Download the latest DMG from [GitHub Releases](https://github.com/productdevbook
 3. Drag PortKiller to your Applications folder
 4. Launch from Applications or Spotlight
 
+### macOS Security Notice
+
+Since PortKiller is not signed with an Apple Developer certificate, macOS will show a security warning on first launch. Here's how to open it:
+
+**Method 1: Right-Click (Easiest)**
+1. Right-click (or Control-click) on PortKiller in Applications
+2. Select "Open" from the context menu
+3. Click "Open" in the dialog that appears
+
+**Method 2: System Settings**
+1. Try to open PortKiller normally (it will be blocked)
+2. Open **System Settings** → **Privacy & Security**
+3. Scroll down to find the message about PortKiller being blocked
+4. Click **"Open Anyway"**
+5. Enter your password if prompted
+6. Launch PortKiller again
+
+**Method 3: Terminal**
+```bash
+xattr -d com.apple.quarantine /Applications/PortKiller.app
+```
+
+> ⚠️ **Note**: This is a one-time setup. After allowing it once, PortKiller will open normally.
+
 ### Build from Source
 
 ```bash
