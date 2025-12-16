@@ -216,7 +216,7 @@ struct SettingsView: View {
             .padding()
             .tabItem { Label("Updates", systemImage: "arrow.down.circle") }
         }
-        .frame(width: 420, height: 450)
+        .frame(width: 500, height: 550)
     }
 
     private func isValidPort(_ text: String) -> Bool {
