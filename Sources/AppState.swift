@@ -21,7 +21,7 @@ extension Defaults.Keys {
 // MARK: - Keyboard Shortcuts
 
 extension KeyboardShortcuts.Name {
-    static let toggleMainWindow = Self("toggleMainWindow", default: .init(.p, modifiers: [.command, .shift]))
+    static let toggleMainWindow = Self("toggleMainWindow")
 }
 
 // MARK: - App State
