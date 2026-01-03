@@ -114,9 +114,7 @@ jobs:
           echo "Updated version to ${VERSION} (build ${BUILD_NUMBER})"
 
       - name: Build app bundle
-        run: |
-          # Build the PortKiller macOS app in Release configuration
-          swift build --configuration release --product PortKiller
+        run: ./scripts/build-app.sh
 
       - name: Sign app with Developer ID
         env:
