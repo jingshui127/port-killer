@@ -4,6 +4,12 @@ name: PR Build Test
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to build'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,16 +20,17 @@ jobs:
   setup:
     name: Setup
     runs-on: ubuntu-latest
-    # Only run on PR comments with /test-build command
+    # Run on PR comments with /test-build OR manual dispatch
     if: |
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '/test-build')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request && contains(github.event.comment.body, '/test-build'))
     outputs:
       ref: ${{ steps.pr.outputs.ref }}
       pr_number: ${{ steps.pr.outputs.pr_number }}
 
     steps:
       - name: React to comment
+        if: github.event_name == 'issue_comment'
         uses: actions/github-script@v7
         with:
           script: |
@@ -37,15 +44,18 @@ jobs:
       - name: Get PR branch
         id: pr
         uses: actions/github-script@v7
+        env:
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
         with:
           script: |
+            const prNumber = process.env.INPUT_PR_NUMBER || context.issue.number;
             const pr = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.issue.number
+              pull_number: parseInt(prNumber)
             });
             core.setOutput('ref', pr.data.head.ref);
-            core.setOutput('pr_number', context.issue.number);
+            core.setOutput('pr_number', prNumber);
 
   # Build job: Call release.yml as reusable workflow
   build:
