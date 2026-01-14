@@ -33,7 +33,10 @@ let package = Package(
                 .enableExperimentalFeature("NonisolatedNonsendingByDefault"),
                 .enableExperimentalFeature("InlineArrayTypeSugar"),
                 // Default MainActor isolation - reduces boilerplate, prevents actor hops
-                .enableUpcomingFeature("DefaultIsolationMainActor")
+                .enableUpcomingFeature("DefaultIsolationMainActor"),
+                // Enable Span types for zero-copy memory access (Swift 6.2+)
+                .enableExperimentalFeature("LifetimeDependence"),
+                .enableExperimentalFeature("Span")
             ]
         ),
         .testTarget(

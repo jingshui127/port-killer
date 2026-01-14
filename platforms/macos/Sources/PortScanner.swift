@@ -91,10 +91,12 @@ actor PortScanner: PortScannerProtocol {
             }
 
             var commands: [Int: String] = [:]
-            let lines = output.components(separatedBy: .newlines)
+            // Use split for zero-copy Substring iteration
+            let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
 
             for line in lines.dropFirst() {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                // Trim whitespace using Substring operations
+                let trimmed = line.drop(while: { $0.isWhitespace })
                 guard !trimmed.isEmpty else { continue }
 
                 let parts = trimmed.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
@@ -135,7 +137,8 @@ actor PortScanner: PortScannerProtocol {
     nonisolated private func parseLsofOutput(_ output: String, commands: [Int: String]) -> [PortInfo] {
         var ports: [PortInfo] = []
         var seen: Set<String> = []
-        let lines = output.components(separatedBy: .newlines)
+        // Use split for zero-copy Substring iteration (no allocation per line)
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
 
         // Skip header line and process each data line
         for line in lines.dropFirst() {
@@ -156,7 +159,7 @@ actor PortScanner: PortScannerProtocol {
 
             guard let pid = Int(components[1]) else { continue }
 
-            // User name
+            // User name - use Substring directly where possible
             let user = String(components[2])
 
             // File descriptor
@@ -166,9 +169,9 @@ actor PortScanner: PortScannerProtocol {
             // It's usually the second-to-last column, before "(LISTEN)"
             // Format: "127.0.0.1:3000", "*:8080", or "[::1]:3000"
             // We search backwards to find a component with ":" that isn't a device ID
-            var addressPart = ""
+            var addressPart: Substring = ""
             for i in stride(from: components.count - 1, through: 8, by: -1) {
-                let comp = String(components[i])
+                let comp = components[i]
                 // Skip device IDs (0x...) and sizes (0t...)
                 if comp.contains(":") && !comp.hasPrefix("0x") && !comp.hasPrefix("0t") {
                     addressPart = comp
@@ -181,7 +184,7 @@ actor PortScanner: PortScannerProtocol {
             // Get full command from ps output
             let command = commands[pid] ?? processName
 
-            guard let portInfo = parseAddress(addressPart, processName: processName, pid: pid, user: user, command: command, fd: fd) else {
+            guard let portInfo = parseAddress(String(addressPart), processName: processName, pid: pid, user: user, command: command, fd: fd) else {
                 continue
             }
 
