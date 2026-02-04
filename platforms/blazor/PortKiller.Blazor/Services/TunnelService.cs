@@ -40,30 +40,20 @@ public class TunnelService
         {
             var existingProcess = GetProcessForPort(savedTunnel.Port);
             
+            var tunnel = new CloudflareTunnel
+            {
+                Port = savedTunnel.Port,
+                Status = existingProcess != null ? "Active" : "Inactive",
+                TunnelUrl = savedTunnel.TunnelUrl,
+                ProcessId = existingProcess?.Id ?? 0,
+                StartTime = existingProcess != null ? existingProcess.StartTime : savedTunnel.StartTime,
+                TunnelName = savedTunnel.TunnelName
+            };
+            
+            _tunnels[tunnel.Port] = tunnel;
             if (existingProcess != null)
             {
-                var tunnel = new CloudflareTunnel
-                {
-                    Port = savedTunnel.Port,
-                    Status = "Active",
-                    TunnelUrl = savedTunnel.TunnelUrl,
-                    ProcessId = existingProcess.Id,
-                    StartTime = existingProcess.StartTime
-                };
-                
-                _tunnels[tunnel.Port] = tunnel;
                 _tunnelProcesses[tunnel.Port] = existingProcess;
-            }
-            else
-            {
-                try
-                {
-                    await CreateTunnelAsync(savedTunnel.Port);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError($"Failed to restore tunnel for port {savedTunnel.Port}: {ex.Message}");
-                }
             }
         }
     }
@@ -139,11 +129,15 @@ public class TunnelService
             throw new InvalidOperationException($"Tunnel for port {port} already exists");
         }
 
+        // Generate a stable tunnel name if not provided
+        var stableTunnelName = tunnelName ?? $"port-{port}-tunnel";
+
         var tunnel = new CloudflareTunnel
         {
             Port = port,
             Status = "Starting",
-            StartTime = DateTime.Now
+            StartTime = DateTime.Now,
+            TunnelName = stableTunnelName
         };
 
         _tunnels[port] = tunnel;
@@ -151,7 +145,7 @@ public class TunnelService
 
         try
         {
-            var cloudflaredProcess = await StartCloudflaredAsync(port, tunnelName);
+            var cloudflaredProcess = await StartCloudflaredAsync(port, stableTunnelName);
             tunnel.ProcessId = cloudflaredProcess.Id;
             tunnel.Status = "Active";
             
@@ -547,6 +541,13 @@ public class TunnelService
         {
             var url = match.Value;
             _tunnelUrls[port] = url;
+            
+            // 更新_tunnels字典中的隧道对象中的TunnelUrl属性
+            if (_tunnels.TryGetValue(port, out var tunnel))
+            {
+                tunnel.TunnelUrl = url;
+                SaveActiveTunnels();
+            }
         }
 
         var lowerLine = line.ToLower();
@@ -586,8 +587,9 @@ public class TunnelService
                             var commandLine = GetProcessCommandLine(process.Id);
                             if (commandLine != null && commandLine.Contains("--url"))
                             {
-                                process.Kill();
-                                _logger?.LogInformation($"Killed orphaned cloudflared process (PID: {process.Id})");
+                                // Don't kill orphaned cloudflared processes on startup
+                                // process.Kill();
+                                // _logger?.LogInformation($"Killed orphaned cloudflared process (PID: {process.Id})");
                             }
                         }
                     }

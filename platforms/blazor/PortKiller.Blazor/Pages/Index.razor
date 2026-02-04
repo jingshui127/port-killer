@@ -93,12 +93,16 @@
             <div class="port-list">
                 @foreach (var port in _filteredPorts)
                 {
-                    <div class="port-card @(port.IsActive ? "active" : "")">
+                    <div class="port-card @(port.IsActive ? "active" : "") @((_tunnels != null && _tunnels.Any(t => t.Port == port.Port)) ? "has-tunnel" : "")">
                         <div class="port-info">
                             <div class="port-header">
                                 <div class="port-number">
                                     <span class="label">端口</span>
                                     <span class="value">@port.Port</span>
+                                    @if (_tunnels != null && _tunnels.Any(t => t.Port == port.Port))
+                                    {
+                                        <span class="tunnel-indicator" title="已配置隧道">🌐</span>
+                                    }
                                 </div>
                                 <div class="port-pid" title="PID: @port.Pid">
                                     <span class="icon">🔢</span>
@@ -118,12 +122,12 @@
                                 </div>
                                 <div class="detail-row">
                                     <div class="detail" title="@port.Command">
-                                        <span class="icon">�</span>
-                                        <span class="text text-truncate">@port.Command</span>
+                                        <span class="icon">📁</span>
+                                        <span class="text">@port.Command</span>
                                     </div>
                                     <div class="detail" title="@port.User">
-                                        <span class="icon">�</span>
-                                        <span class="text text-truncate">@port.User</span>
+                                        <span class="icon">👤</span>
+                                        <span class="text">@port.User</span>
                                     </div>
                                 </div>
                             </div>
@@ -181,14 +185,6 @@
                             <text>全部删除</text>
                         </button>
                     }
-                </div>
-            </div>
-
-            <div class="tunnel-info-box">
-                <div class="info-box-icon">💡</div>
-                <div class="info-box-content">
-                    <p class="info-box-title">一键发布至公网</p>
-                    <p class="info-box-text">鼠标一点，即可将内网站点发布至公网，方便给客户演示、远程调试和协同开发</p>
                 </div>
             </div>
 
@@ -279,6 +275,20 @@
                     </button>
                 </div>
             </div>
+
+            @if (_showTunnelInfoBox)
+            {
+                <div class="tunnel-info-box">
+                    <div class="info-box-header">
+                        <div class="info-box-icon">💡</div>
+                        <button class="info-box-close" @onclick="@HideTunnelInfoBox">✕</button>
+                    </div>
+                    <div class="info-box-content">
+                        <p class="info-box-title">一键发布至公网</p>
+                        <p class="info-box-text">鼠标一点，即可将内网站点发布至公网，方便给客户演示、远程调试和协同开发</p>
+                    </div>
+                </div>
+            }
         </div>
     }
 </div>
@@ -330,10 +340,10 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" @onclick="@(() => { ClosePortDetailsModal(); _ = CreateTunnelForPort(_selectedPort.Port); })">
+                <button class="btn btn-primary" @onclick="@(() => { var port = _selectedPort.Port; ClosePortDetailsModal(); _ = CreateTunnelForPort(port); })">
                     <span class="icon">🌐</span> 创建隧道
                 </button>
-                <button class="btn btn-danger" @onclick="@(() => { ClosePortDetailsModal(); KillPort(_selectedPort.Port); })">
+                <button class="btn btn-danger" @onclick="@(() => { var port = _selectedPort.Port; ClosePortDetailsModal(); KillPort(port); })">
                     <span class="icon">✕</span> 终止进程
                 </button>
             </div>
@@ -342,19 +352,29 @@
 }
 
 <style>
+    body {
+        margin: 0;
+        padding: 0;
+        background: #1e1e1e;
+        color: #e0e0e0;
+    }
+    
     .container {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 20px;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 16px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         background: #1e1e1e;
         color: #e0e0e0;
+        min-height: 100vh;
+        box-sizing: border-box;
     }
     
     .header {
         text-align: center;
         margin-bottom: 30px;
         position: relative;
+        width: 100%;
     }
     
     .header h1 {
@@ -488,6 +508,7 @@
         gap: 16px;
         margin-bottom: 20px;
         flex-wrap: wrap;
+        justify-content: space-between;
     }
     
     .filter-buttons {
@@ -585,12 +606,14 @@
     }
     
     .port-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-        gap: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        justify-content: flex-start;
     }
     
     .port-card {
+        width: 300px;
         background: #2a2a2a;
         border-radius: 12px;
         padding: 20px;
@@ -614,15 +637,14 @@
     
     .port-header {
         display: flex;
-        align-items: baseline;
+        align-items: center;
         justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 12px;
+        margin-bottom: 16px;
     }
     
     .port-number {
         display: flex;
-        align-items: baseline;
+        align-items: center;
         gap: 8px;
     }
     
@@ -634,9 +656,47 @@
     }
     
     .port-number .value {
-        font-size: 32px;
+        font-size: 28px;
         font-weight: 700;
         color: #667eea;
+    }
+    
+    .tunnel-indicator {
+        font-size: 16px;
+        margin-left: 8px;
+        color: #2ecc71;
+        animation: pulse 2s infinite;
+    }
+    
+    @@keyframes pulse {
+        0% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.1);
+            opacity: 0.8;
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+    
+    .port-card.has-tunnel {
+        border: 1px solid #2ecc71;
+        position: relative;
+    }
+    
+    .port-card.has-tunnel::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+        border-radius: 12px 0 0 12px;
     }
     
     .port-pid {
@@ -646,8 +706,10 @@
         font-size: 13px;
         color: #808080;
         background: #2a2a2a;
-        padding: 4px 10px;
-        border-radius: 4px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        min-width: 80px;
+        justify-content: flex-end;
     }
     
     .port-pid .icon {
@@ -661,13 +723,13 @@
     .port-details {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 10px;
     }
     
     .detail-row {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 16px;
     }
     
     .detail {
@@ -676,21 +738,38 @@
         gap: 8px;
         font-size: 13px;
         color: #b0b0b0;
+        flex: 1;
+        min-width: 0;
     }
     
     .detail .icon {
         font-size: 14px;
+        flex-shrink: 0;
+        min-width: 16px;
     }
     
     .detail .text {
         color: #e0e0e0;
-    }
-    
-    .text-truncate {
+        flex: 1;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        max-width: 200px;
+    }
+    
+    .detail-row:first-child {
+        justify-content: space-between;
+    }
+    
+    .detail-row:first-child .detail {
+        flex: 1;
+    }
+    
+    .detail-row:last-child {
+        justify-content: space-between;
+    }
+    
+    .detail-row:last-child .detail {
+        flex: 1;
     }
     
     .port-actions {
@@ -819,15 +898,39 @@
         border-radius: 12px;
         padding: 20px 24px;
         margin-bottom: 24px;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    .info-box-header {
         display: flex;
         align-items: flex-start;
-        gap: 16px;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        justify-content: space-between;
+        margin-bottom: 12px;
     }
     
     .info-box-icon {
         font-size: 32px;
         flex-shrink: 0;
+    }
+    
+    .info-box-close {
+        background: transparent;
+        border: none;
+        color: #ffffff;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: background-color 0.2s ease;
+    }
+    
+    .info-box-close:hover {
+        background-color: rgba(255, 255, 255, 0.2);
     }
     
     .info-box-content {
@@ -882,12 +985,14 @@
     }
     
     .tunnel-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-        gap: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        justify-content: flex-start;
     }
     
     .tunnel-card {
+        width: 300px;
         background: #2a2a2a;
         border-radius: 12px;
         padding: 20px;
@@ -1029,7 +1134,7 @@
     .search-box {
         position: relative;
         flex: 1;
-        min-width: 300px;
+        min-width: 250px;
     }
     
     .search-box input {
@@ -1177,7 +1282,7 @@
     .modal-content {
         background: #2a2a2a;
         border-radius: 12px;
-        max-width: 500px;
+        max-width: 50vw;
         width: 90%;
         max-height: 80vh;
         overflow-y: auto;
@@ -1736,6 +1841,7 @@
     private List<Notification> _notifications = new();
     private bool _showFavoritesOnly = false;
     private bool _showWatchedOnly = false;
+    private bool _showTunnelInfoBox = true;
 
     [Inject]
     private IJSRuntime JavaScriptRuntime { get; set; } = null!;
@@ -2108,13 +2214,53 @@
             {
                 var error = await response.Content.ReadAsStringAsync();
                 Logger.LogError("Error creating tunnel: {Error}", error);
-                ShowNotification($"创建隧道失败: {error}", "error");
+                
+                // 优化错误提示
+                string friendlyError = "创建隧道失败";
+                if (error.Contains("429 Too Many Requests") || error.Contains("rate limiting"))
+                {
+                    friendlyError = "创建隧道失败: 请求频率过高，请等待几分钟后再试";
+                }
+                else if (error.Contains("invalid character") && error.Contains("looking for beginning of value"))
+                {
+                    friendlyError = "创建隧道失败: 网络响应异常，请稍后再试";
+                }
+                else if (error.Contains("1015"))
+                {
+                    friendlyError = "创建隧道失败: 访问限制，请检查网络连接或稍后再试";
+                }
+                else if (!string.IsNullOrWhiteSpace(error))
+                {
+                    friendlyError = $"创建隧道失败: {error}";
+                }
+                
+                ShowNotification(friendlyError, "error");
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error creating tunnel");
-            ShowNotification($"创建隧道失败: {ex.Message}", "error");
+            
+            // 优化异常提示
+            string friendlyError = "创建隧道失败: 网络或系统错误";
+            if (ex.Message.Contains("429") || ex.Message.Contains("Too Many Requests"))
+            {
+                friendlyError = "创建隧道失败: 请求频率过高，请等待几分钟后再试";
+            }
+            else if (ex.Message.Contains("timeout") || ex.Message.Contains("timed out"))
+            {
+                friendlyError = "创建隧道失败: 网络超时，请检查网络连接";
+            }
+            else if (ex.Message.Contains("connection") || ex.Message.Contains("connect"))
+            {
+                friendlyError = "创建隧道失败: 网络连接失败，请检查网络设置";
+            }
+            else if (!string.IsNullOrWhiteSpace(ex.Message))
+            {
+                friendlyError = $"创建隧道失败: {ex.Message}";
+            }
+            
+            ShowNotification(friendlyError, "error");
         }
         finally
         {
@@ -2143,6 +2289,12 @@
     {
         _showPortDetailsModal = false;
         _selectedPort = null;
+        StateHasChanged();
+    }
+
+    private void HideTunnelInfoBox()
+    {
+        _showTunnelInfoBox = false;
         StateHasChanged();
     }
 
