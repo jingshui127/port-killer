@@ -16,8 +16,8 @@ public partial class App : Application
         {
             System.Diagnostics.Debug.WriteLine($"Unhandled exception: {e.Exception.Message}");
             System.Diagnostics.Debug.WriteLine($"Stack trace: {e.Exception.StackTrace}");
-            MessageBox.Show($"An error occurred: {e.Exception.Message}\n\nStack trace:\n{e.Exception.StackTrace}", 
-                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"发生错误: {e.Exception.Message}\n\n堆栈跟踪:\n{e.Exception.StackTrace}", 
+                "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             e.Handled = true;
         };
 
@@ -46,7 +46,8 @@ public partial class App : Application
         ));
         services.AddSingleton<TunnelViewModel>(sp => new TunnelViewModel(
             sp.GetRequiredService<TunnelService>(),
-            NotificationService.Instance
+            NotificationService.Instance,
+            sp.GetRequiredService<SettingsService>()
         ));
     }
 }

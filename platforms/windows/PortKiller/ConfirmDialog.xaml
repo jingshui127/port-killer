@@ -1,7 +1,7 @@
 <Window x:Class="PortKiller.ConfirmDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Confirm"
+        Title="确认"
         Width="360" Height="200"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -56,7 +56,7 @@
             </Grid.RowDefinitions>
 
             <!-- Title -->
-            <TextBlock x:Name="TitleText" Grid.Row="0" Text="Confirm Action" 
+            <TextBlock x:Name="TitleText" Grid.Row="0" Text="确认操作" 
                        FontSize="16" FontWeight="Bold" 
                        Foreground="{StaticResource TextPrimary}" 
                        Margin="0,0,0,12"/>
@@ -64,13 +64,13 @@
             <!-- Message -->
             <StackPanel Grid.Row="1" VerticalAlignment="Center">
                 <TextBlock x:Name="MessageText" 
-                           Text="Kill process on port 3000?" 
+                           Text="终止端口 3000 上的进程？" 
                            FontSize="13" 
                            Foreground="{StaticResource TextPrimary}" 
                            TextWrapping="Wrap"
                            Margin="0,0,0,8"/>
                 <TextBlock x:Name="DetailsText" 
-                           Text="Process: node&#x0a;PID: 25944" 
+                           Text="进程：node&#x0a;PID：25944" 
                            FontSize="11" 
                            Foreground="{StaticResource TextSecondary}" 
                            TextWrapping="Wrap"/>
@@ -85,14 +85,14 @@
                 </Grid.ColumnDefinitions>
 
                 <Button Grid.Column="0" 
-                        Content="No" 
+                        Content="否" 
                         Click="NoButton_Click"
                         Style="{StaticResource DialogButton}"
                         Foreground="{StaticResource TextPrimary}"
                         Background="#30FFFFFF"/>
 
                 <Button Grid.Column="2" 
-                        Content="Yes" 
+                        Content="是" 
                         Click="YesButton_Click"
                         Style="{StaticResource DialogButton}"
                         Foreground="White"

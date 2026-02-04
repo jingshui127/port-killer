@@ -13,6 +13,7 @@ public partial class CloudflareTunnelsView : Window
 {
     private readonly TunnelViewModel _viewModel;
     private StackPanel? _emptyState;
+    private StackPanel? _loadingState;
 
     public CloudflareTunnelsView()
     {
@@ -20,9 +21,12 @@ public partial class CloudflareTunnelsView : Window
         
         _viewModel = App.Services.GetRequiredService<TunnelViewModel>();
         DataContext = _viewModel;
-
+        
         // Get reference to empty state
         _emptyState = this.FindName("EmptyState") as StackPanel;
+        
+        // Get reference to loading state
+        _loadingState = this.FindName("LoadingState") as StackPanel;
 
         // Update empty state visibility
         UpdateEmptyState();
@@ -35,6 +39,12 @@ public partial class CloudflareTunnelsView : Window
         {
             _emptyState.Visibility = _viewModel.Tunnels.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
+        
+        // Hide loading state when not initializing
+        if (_loadingState != null)
+        {
+            _loadingState.Visibility = _viewModel.IsInitializing ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 
     private async void StopButton_Click(object sender, RoutedEventArgs e)
@@ -45,12 +55,20 @@ public partial class CloudflareTunnelsView : Window
         await _viewModel.StopTunnelAsync(tunnel);
     }
 
+    private async void RestartButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: CloudflareTunnel tunnel })
+            return;
+
+        await _viewModel.RestartTunnelAsync(tunnel);
+    }
+
     private async void StopAllButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ConfirmDialog(
-            $"Are you sure you want to stop all {_viewModel.Tunnels.Count} tunnel(s)?",
-            "All public URLs will be terminated immediately.\n\nThis action cannot be undone.",
-            "Stop All Tunnels")
+            $"您确定要停止所有 {_viewModel.Tunnels.Count} 个隧道吗？",
+            "所有公共 URL 将立即失效。\n\n此操作无法撤销。",
+            "停止所有隧道")
         {
             Owner = this
         };

@@ -307,6 +307,13 @@ public partial class MiniPortKillerWindow : Window
         Left = workArea.Right - Width - 10;
         Top = workArea.Bottom - Height - 10;
         
+        try
+        {
+            // Enable acrylic blur effect
+            Helpers.WindowBlurHelper.EnableAcrylicBlur(this, blurOpacity: 180, blurColor: 0x1A1A1A);
+        }
+        catch { /* Not supported */ }
+
         // Reset search
         if (SearchBox != null)
         {
@@ -385,7 +392,7 @@ public partial class MiniPortKillerWindow : Window
         
         // Show loading spinner
         loadingSpinner.Visibility = Visibility.Visible;
-        refreshStatusText.Text = "Refreshing...";
+        refreshStatusText.Text = "正在刷新...";
         
         // Start spinner animation
         StartSpinnerAnimation();
@@ -413,7 +420,7 @@ public partial class MiniPortKillerWindow : Window
         
         // Show success state
         successDot.Visibility = Visibility.Visible;
-        refreshStatusText.Text = "Refreshed";
+        refreshStatusText.Text = "刷新成功";
         
         // Reset to idle state after 2 seconds
         _successTimer = new System.Windows.Threading.DispatcherTimer
@@ -447,7 +454,7 @@ public partial class MiniPortKillerWindow : Window
         
         // Show idle state
         refreshIcon.Visibility = Visibility.Visible;
-        refreshStatusText.Text = "Refresh";
+        refreshStatusText.Text = "刷新端口";
     }
 
     private void StartSpinnerAnimation()
@@ -486,7 +493,7 @@ public partial class MiniPortKillerWindow : Window
             if (favoriteMenuItem != null)
             {
                 bool isFavorite = _viewModel.IsFavorite(port.Port);
-                favoriteMenuItem.Header = isFavorite ? "Remove from Favorites" : "Add to Favorites";
+                favoriteMenuItem.Header = isFavorite ? "从收藏中移除" : "添加到收藏";
             }
 
             // Update "Watch Port" / "Unwatch Port"
@@ -494,7 +501,7 @@ public partial class MiniPortKillerWindow : Window
             if (watchMenuItem != null)
             {
                 bool isWatched = _viewModel.WatchedPorts.Any(w => w.Port == port.Port);
-                watchMenuItem.Header = isWatched ? "Unwatch Port" : "Watch Port";
+                watchMenuItem.Header = isWatched ? "取消监控" : "监控端口";
             }
         }
     }
@@ -559,7 +566,7 @@ public partial class MiniPortKillerWindow : Window
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[MiniPortKiller] Failed to open browser: {ex.Message}");
-                MessageBox.Show($"Failed to open browser: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"无法打开浏览器: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -634,7 +641,7 @@ public partial class MiniPortKillerWindow : Window
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[MiniPortKiller] Failed to start tunnel: {ex.Message}");
-                MessageBox.Show($"Failed to start tunnel: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"无法启动隧道: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {

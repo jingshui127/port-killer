@@ -1,0 +1,141 @@
+using Microsoft.AspNetCore.Mvc;
+using PortKiller.Blazor.Services;
+using PortKiller.Blazor.Models;
+
+namespace PortKiller.Blazor.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class PortsController : ControllerBase
+{
+    private readonly PortScannerService _portScanner;
+    private readonly TunnelService _tunnelService;
+
+    public PortsController(PortScannerService portScanner, TunnelService tunnelService)
+    {
+        _portScanner = portScanner;
+        _tunnelService = tunnelService;
+    }
+
+    [HttpGet]
+    [Route("ports")]
+    public ActionResult<List<PortInfo>> GetPorts()
+    {
+        return Ok(_portScanner.GetPorts());
+    }
+
+    [HttpPost]
+    [Route("refresh")]
+    public async Task<ActionResult> RefreshPorts()
+    {
+        await _portScanner.RefreshPortsAsync();
+        return Ok(new { success = true, message = "Ports refreshed" });
+    }
+
+    [HttpPost]
+    [Route("kill/{port}")]
+    public ActionResult KillPort(int port)
+    {
+        _portScanner.KillPort(port);
+        return Ok(new { success = true, message = $"Port {port} killed" });
+    }
+
+    [HttpPost]
+    [Route("favorite/{port}")]
+    public ActionResult ToggleFavorite(int port)
+    {
+        _portScanner.ToggleFavorite(port);
+        return Ok(new { success = true, message = $"Port {port} favorite toggled" });
+    }
+
+    [HttpPost]
+    [Route("watch/{port}")]
+    public ActionResult ToggleWatch(int port)
+    {
+        _portScanner.ToggleWatch(port);
+        return Ok(new { success = true, message = $"Port {port} watch toggled" });
+    }
+
+    [HttpGet]
+    [Route("tunnels")]
+    public ActionResult<List<CloudflareTunnel>> GetTunnels()
+    {
+        _tunnelService.UpdateTunnelStatus();
+        return Ok(_tunnelService.GetTunnels());
+    }
+
+    [HttpPost]
+    [Route("tunnels/create")]
+    public async Task<ActionResult<CloudflareTunnel>> CreateTunnel([FromBody] CreateTunnelRequest request)
+    {
+        try
+        {
+            var tunnel = await _tunnelService.CreateTunnelAsync(request.Port, request.TunnelName);
+            return Ok(tunnel);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [Route("tunnels/stop/{port}")]
+    public ActionResult StopTunnel(int port)
+    {
+        try
+        {
+            _tunnelService.StopTunnel(port);
+            return Ok(new { success = true, message = $"Tunnel for port {port} stopped" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [Route("tunnels/stop-all")]
+    public ActionResult StopAllTunnels()
+    {
+        try
+        {
+            _tunnelService.StopAllTunnels();
+            return Ok(new { success = true, message = "All tunnels stopped" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [Route("tunnels/restart/{port}")]
+    public async Task<ActionResult<CloudflareTunnel>> RestartTunnel(int port)
+    {
+        try
+        {
+            var tunnel = await _tunnelService.RestartTunnelAsync(port);
+            return Ok(tunnel);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpGet]
+    [Route("tunnels/cloudflared/status")]
+    public ActionResult CheckCloudflared()
+    {
+        var isInstalled = _tunnelService.IsCloudflaredInstalled();
+        var version = _tunnelService.GetCloudflaredVersion();
+        return Ok(new CloudflaredStatus { IsInstalled = isInstalled, Version = version });
+    }
+}
+
+public class CreateTunnelRequest
+{
+    public int Port { get; set; }
+    public string? TunnelName { get; set; }
+}

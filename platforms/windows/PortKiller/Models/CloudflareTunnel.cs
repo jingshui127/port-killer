@@ -99,12 +99,12 @@ public class CloudflareTunnel : INotifyPropertyChanged
     // Computed properties for UI binding
     public string StatusText => Status switch
     {
-        TunnelStatus.Idle => "Idle",
-        TunnelStatus.Starting => "Starting...",
-        TunnelStatus.Active => "Active",
-        TunnelStatus.Stopping => "Stopping...",
-        TunnelStatus.Error => "Error",
-        _ => "Unknown"
+        TunnelStatus.Idle => "空闲",
+        TunnelStatus.Starting => "正在启动...",
+        TunnelStatus.Active => "活跃",
+        TunnelStatus.Stopping => "正在停止...",
+        TunnelStatus.Error => "错误",
+        _ => "未知"
     };
 
     public string StatusColor => Status switch
@@ -123,7 +123,7 @@ public class CloudflareTunnel : INotifyPropertyChanged
     public bool CanOpenUrl => IsActive && !string.IsNullOrEmpty(TunnelUrl);
 
     public string DisplayUrl => string.IsNullOrEmpty(TunnelUrl) 
-        ? (Status == TunnelStatus.Starting ? "Generating URL..." : "No URL available")
+        ? (Status == TunnelStatus.Starting ? "正在生成 URL..." : "无可用 URL")
         : TunnelUrl.Replace("https://", "");
 
     public string Uptime
@@ -135,18 +135,22 @@ public class CloudflareTunnel : INotifyPropertyChanged
 
             var elapsed = DateTime.Now - StartTime.Value;
             if (elapsed.TotalMinutes < 1)
-                return $"{elapsed.Seconds}s";
+                return $"{elapsed.Seconds}秒";
             if (elapsed.TotalHours < 1)
-                return $"{elapsed.Minutes}m {elapsed.Seconds}s";
-            return $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m";
+                return $"{elapsed.Minutes}分 {elapsed.Seconds}秒";
+            return $"{(int)elapsed.TotalHours}小时 {elapsed.Minutes}分";
         }
     }
 
-    public CloudflareTunnel(int port)
+    public CloudflareTunnel()
     {
         Id = Guid.NewGuid();
-        Port = port;
         Status = TunnelStatus.Idle;
+    }
+
+    public CloudflareTunnel(int port) : this()
+    {
+        Port = port;
     }
 
     // INotifyPropertyChanged implementation

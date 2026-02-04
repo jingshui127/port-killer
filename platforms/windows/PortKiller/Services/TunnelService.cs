@@ -29,6 +29,77 @@ public class TunnelService
     public bool IsCloudflaredInstalled => CloudflaredPath != null;
 
     /// <summary>
+    /// Checks if a tunnel process is running for a specific port
+    /// </summary>
+    public bool IsRunning(Guid tunnelId)
+    {
+        return _processes.TryGetValue(tunnelId, out var process) && !process.HasExited;
+    }
+
+    /// <summary>
+    /// Gets cloudflared process for a specific port
+    /// </summary>
+    public Process? GetProcessForPort(int port)
+    {
+        // First check managed processes
+        foreach (var kvp in _processes)
+        {
+            var process = kvp.Value;
+            if (!process.HasExited)
+            {
+                var commandLine = GetProcessCommandLine(process.Id);
+                if (commandLine != null && commandLine.Contains($"--url localhost:{port}"))
+                {
+                    return process;
+                }
+            }
+        }
+        
+        // If not found in managed processes, check all cloudflared processes
+        var allCloudflaredProcesses = Process.GetProcessesByName("cloudflared");
+        foreach (var process in allCloudflaredProcesses)
+        {
+            try
+            {
+                var commandLine = GetProcessCommandLine(process.Id);
+                if (commandLine != null && commandLine.Contains($"--url localhost:{port}"))
+                {
+                    return process;
+                }
+            }
+            catch
+            {
+                // Ignore errors
+            }
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// Gets the command line of a process
+    /// </summary>
+    public string? GetProcessCommandLine(int processId)
+    {
+        try
+        {
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}");
+            
+            foreach (System.Management.ManagementObject obj in searcher.Get())
+            {
+                return obj["CommandLine"]?.ToString();
+            }
+            
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Gets the path to cloudflared.exe if installed
     /// </summary>
     public string? CloudflaredPath
@@ -75,6 +146,18 @@ public class TunnelService
 
             return null;
         }
+    }
+
+    /// <summary>
+    /// Attaches to an existing cloudflared process
+    /// </summary>
+    public void AttachTunnel(CloudflareTunnel tunnel, Process process)
+    {
+        _processes[tunnel.Id] = process;
+        tunnel.ProcessId = process.Id;
+        
+        // Note: We can't easily redirect output of an existing process in .NET
+        // so we rely on the saved URL.
     }
 
     /// <summary>
@@ -208,14 +291,6 @@ public class TunnelService
     }
 
     /// <summary>
-    /// Checks if a tunnel process is running
-    /// </summary>
-    public bool IsRunning(Guid tunnelId)
-    {
-        return _processes.TryGetValue(tunnelId, out var process) && !process.HasExited;
-    }
-
-    /// <summary>
     /// Parses cloudflared output to extract tunnel URL
     /// </summary>
     private void ParseOutput(Guid tunnelId, string line)
@@ -283,27 +358,5 @@ public class TunnelService
                 Debug.WriteLine($"Error cleaning up orphaned tunnels: {ex.Message}");
             }
         });
-    }
-
-    /// <summary>
-    /// Gets the command line of a process (for cleanup verification)
-    /// </summary>
-    private string? GetProcessCommandLine(int processId)
-    {
-        try
-        {
-            using var searcher = new System.Management.ManagementObjectSearcher(
-                $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}");
-            
-            foreach (System.Management.ManagementObject obj in searcher.Get())
-            {
-                return obj["CommandLine"]?.ToString();
-            }
-        }
-        catch
-        {
-            // Ignore
-        }
-        return null;
     }
 }

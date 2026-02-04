@@ -31,6 +31,7 @@ public class SettingsService
     {
         public List<int>? Favorites { get; set; }
         public List<WatchedPort>? WatchedPorts { get; set; }
+        public List<CloudflareTunnel>? ActiveTunnels { get; set; }
         public int RefreshInterval { get; set; } = 5;
         public bool AutoStart { get; set; }
         public bool ShowNotifications { get; set; } = true;
@@ -133,6 +134,20 @@ public class SettingsService
     {
         var data = LoadSettingsData();
         data.ShowNotifications = show;
+        SaveSettingsData(data);
+    }
+
+    // Active Tunnels
+    public List<CloudflareTunnel> GetActiveTunnels()
+    {
+        var data = LoadSettingsData();
+        return data.ActiveTunnels ?? new List<CloudflareTunnel>();
+    }
+
+    public void SaveActiveTunnels(List<CloudflareTunnel> tunnels)
+    {
+        var data = LoadSettingsData();
+        data.ActiveTunnels = tunnels;
         SaveSettingsData(data);
     }
 

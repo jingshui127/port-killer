@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -16,6 +17,10 @@ public partial class MainWindow : Window
     private readonly TunnelViewModel _tunnelViewModel;
     private Hardcodet.Wpf.TaskbarNotification.TaskbarIcon? _trayIcon;
     private bool _isShuttingDown = false;
+    private StackPanel? _loadingState;
+    private StackPanel? _tunnelsLoadingState;
+    private TextBlock? _tunnelsLoadingText;
+    private TextBlock? _tunnelsLoadingSubText;
 
     public MainWindow()
     {
@@ -23,7 +28,22 @@ public partial class MainWindow : Window
 
         _viewModel = App.Services.GetRequiredService<MainViewModel>();
         _tunnelViewModel = App.Services.GetRequiredService<TunnelViewModel>();
-        InitializeAsync();
+        
+        // Ensure window is visible and activated on startup
+        Loaded += (s, e) =>
+        {
+            // Get reference to loading state after window is loaded
+            _loadingState = this.FindName("LoadingState") as StackPanel;
+            
+            // Get reference to tunnels loading state after window is loaded
+            _tunnelsLoadingState = this.FindName("TunnelsLoadingState") as StackPanel;
+            
+            // Get reference to tunnels loading text elements
+            _tunnelsLoadingText = this.FindName("TunnelsLoadingText") as TextBlock;
+            _tunnelsLoadingSubText = this.FindName("TunnelsLoadingSubText") as TextBlock;
+            
+            InitializeAsync();
+        };
         
         // Setup keyboard shortcuts
         SetupKeyboardShortcuts();
@@ -31,13 +51,9 @@ public partial class MainWindow : Window
         // Initialize system tray icon
         InitializeTrayIcon();
         
-        // Ensure window is visible and activated on startup
-        Loaded += (s, e) =>
-        {
-            Show();
-            Activate();
-            WindowState = WindowState.Normal;
-        };
+        Show();
+        Activate();
+        WindowState = WindowState.Normal;
     }
 
     private void InitializeTrayIcon()
@@ -51,39 +67,48 @@ public partial class MainWindow : Window
         // Create icon from text (simple fallback)
         _trayIcon.Icon = CreateTrayIcon();
 
-        // Setup context menu
+        // Setup context menu with dark theme
         var contextMenu = new ContextMenu
         {
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(42, 42, 42)),
-            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(224, 224, 224))
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(30, 30, 30)),
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(224, 224, 224)),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(60, 60, 60))
         };
 
-        var openItem = new MenuItem { Header = "🪟  Open Main Window", FontWeight = FontWeights.SemiBold };
-        openItem.Click += TrayOpenMain_Click;
-        contextMenu.Items.Add(openItem);
-        
-        contextMenu.Items.Add(new Separator());
+        contextMenu.Items.Add(CreateMenuItem("打开主窗口", "🪟", TrayOpenMain_Click, fontWeight: FontWeights.SemiBold));
+        contextMenu.Items.Add(new Separator { Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(60, 60, 60)) });
 
-        var refreshItem = new MenuItem { Header = "○  Refresh", InputGestureText = "Ctrl+R" };
-        refreshItem.Click += TrayRefresh_Click;
-        contextMenu.Items.Add(refreshItem);
+        contextMenu.Items.Add(CreateMenuItem("刷新", "↻", TrayRefresh_Click, "Ctrl+R"));
+        contextMenu.Items.Add(CreateMenuItem("终止所有进程", "⚡", TrayKillAll_Click, "Ctrl+K"));
 
-        var killAllItem = new MenuItem { Header = "✕  Kill All", InputGestureText = "Ctrl+K" };
-        killAllItem.Click += TrayKillAll_Click;
-        contextMenu.Items.Add(killAllItem);
+        contextMenu.Items.Add(new Separator { Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(60, 60, 60)) });
 
-        contextMenu.Items.Add(new Separator());
-
-        var settingsItem = new MenuItem { Header = "⚙  Settings" };
-        settingsItem.Click += TraySettings_Click;
-        contextMenu.Items.Add(settingsItem);
-
-        var quitItem = new MenuItem { Header = "×  Quit", InputGestureText = "Ctrl+Q" };
-        quitItem.Click += TrayQuit_Click;
-        contextMenu.Items.Add(quitItem);
+        contextMenu.Items.Add(CreateMenuItem("设置", "⚙", TraySettings_Click));
+        contextMenu.Items.Add(CreateMenuItem("退出", "✕", TrayQuit_Click, "Ctrl+Q"));
 
         _trayIcon.ContextMenu = contextMenu;
         _trayIcon.TrayLeftMouseDown += TrayIcon_Click;
+    }
+
+    private MenuItem CreateMenuItem(string header, string icon, RoutedEventHandler onClick, string? gesture = null, FontWeight? fontWeight = null)
+    {
+        var item = new MenuItem
+        {
+            Header = header,
+            InputGestureText = gesture,
+            FontWeight = fontWeight ?? FontWeights.Normal,
+            Icon = new TextBlock 
+            { 
+                Text = icon, 
+                FontSize = 14, 
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(2, 0, 0, 0)
+            }
+        };
+        item.Click += onClick;
+        return item;
     }
 
     private System.Drawing.Icon CreateTrayIcon()
@@ -108,10 +133,13 @@ public partial class MainWindow : Window
 
     private async void InitializeAsync()
     {
-        await _viewModel.InitializeAsync();
-        UpdateUI();
+        // Show loading state
+        ShowLoadingState();
 
-        // Subscribe to property changes
+        await _viewModel.InitializeAsync();
+        await _tunnelViewModel.InitializeAsync();
+        
+        // Subscribe to property changes BEFORE updating UI
         _viewModel.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(_viewModel.FilteredPorts) ||
@@ -125,6 +153,22 @@ public partial class MainWindow : Window
                 Dispatcher.Invoke(UpdateTrayMenu);
             }
         };
+        
+        // Subscribe to tunnel view model property changes
+        _tunnelViewModel.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(_tunnelViewModel.Tunnels) ||
+                e.PropertyName == nameof(_tunnelViewModel.IsInitializing) ||
+                e.PropertyName == nameof(_tunnelViewModel.IsRefreshing) ||
+                e.PropertyName == nameof(_tunnelViewModel.ActiveTunnelCount))
+            {
+                Dispatcher.Invoke(UpdateTunnelsUI);
+            }
+        };
+        
+        // Update UI after subscriptions are set up
+        UpdateUI();
+        UpdateTunnelsUI();
     }
 
     private void UpdateUI()
@@ -135,10 +179,21 @@ public partial class MainWindow : Window
         // Update empty state
         EmptyState.Visibility = _viewModel.FilteredPorts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
+        // Hide loading state
+        if (_loadingState != null) _loadingState.Visibility = Visibility.Collapsed;
+
         // Update status
         StatusText.Text = _viewModel.IsScanning
-            ? "Scanning ports..."
-            : $"{_viewModel.FilteredPorts.Count} port(s) listening";
+            ? "正在扫描端口..."
+            : $"{_viewModel.FilteredPorts.Count} 个端口";
+    }
+
+    private void ShowLoadingState()
+    {
+        // Show loading state
+        EmptyState.Visibility = Visibility.Collapsed;
+        if (_loadingState != null) _loadingState.Visibility = Visibility.Visible;
+        StatusText.Text = "正在扫描端口...";
     }
 
     // Window Controls
@@ -194,6 +249,8 @@ public partial class MainWindow : Window
                     PortsPanel.Visibility = Visibility.Collapsed;
                     DetailPanel.Visibility = Visibility.Collapsed;
                     TunnelsPanel.Visibility = Visibility.Visible;
+                    
+                    // Update tunnels UI immediately
                     UpdateTunnelsUI();
                 }
                 else
@@ -237,13 +294,13 @@ public partial class MainWindow : Window
 
         // Update favorite button
         FavoriteButton.Content = _viewModel.IsFavorite(port.Port)
-            ? "⭐ Remove from Favorites"
-            : "⭐ Add to Favorites";
+            ? "⭐ 从收藏中移除"
+            : "⭐ 添加到收藏";
 
         // Update watch button
         WatchButton.Content = _viewModel.IsWatched(port.Port)
-            ? "👁 Unwatch Port"
-            : "👁 Watch Port";
+            ? "👁 取消监控"
+            : "👁 监控端口";
     }
 
     private async void KillButton_Click(object sender, RoutedEventArgs e)
@@ -251,9 +308,9 @@ public partial class MainWindow : Window
         if (sender is Button button && button.Tag is PortInfo port)
         {
             var dialog = new ConfirmDialog(
-                $"Are you sure you want to kill the process on port {port.Port}?",
-                $"Process: {port.ProcessName}\nPID: {port.Pid}\n\nThis action cannot be undone.",
-                "Kill Process")
+                $"您确定要终止端口 {port.Port} 上的进程吗？",
+                $"进程: {port.ProcessName}\nPID: {port.Pid}\n\n此操作无法撤销。",
+                "终止进程")
             {
                 Owner = this
             };
@@ -360,9 +417,9 @@ public partial class MainWindow : Window
     private async void TrayKillAll_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ConfirmDialog(
-            "Are you sure you want to kill ALL processes on listening ports?",
-            $"This will terminate {_viewModel.Ports.Count} process(es).\n\nThis action cannot be undone.",
-            "Kill All Processes")
+            "您确定要终止所有监听端口的进程吗？",
+            $"这将终止 {_viewModel.Ports.Count} 个进程。\n\n此操作无法撤销。",
+            "终止所有进程")
         {
             Owner = this
         };
@@ -388,25 +445,73 @@ public partial class MainWindow : Window
     // Cloudflare Tunnels Methods
     private void UpdateTunnelsUI()
     {
+        System.Diagnostics.Debug.WriteLine($"[UpdateTunnelsUI] Called. IsInitializing={_tunnelViewModel.IsInitializing}, IsRefreshing={_tunnelViewModel.IsRefreshing}, TunnelsCount={_tunnelViewModel.Tunnels.Count}");
+        
         // Bind tunnels list to view model
         TunnelsListView.ItemsSource = _tunnelViewModel.Tunnels;
+        
+        // Handle loading and refreshing states
+        if (_tunnelViewModel.IsInitializing || _tunnelViewModel.IsRefreshing)
+        {
+            if (_tunnelsLoadingState != null)
+            {
+                _tunnelsLoadingState.Visibility = Visibility.Visible;
+                System.Diagnostics.Debug.WriteLine($"[UpdateTunnelsUI] Loading state set to Visible");
+            }
+            TunnelsListView.Visibility = Visibility.Collapsed;
+            TunnelsEmptyState.Visibility = Visibility.Collapsed;
+            
+            // Update loading text based on state
+            if (_tunnelsLoadingText != null)
+            {
+                _tunnelsLoadingText.Text = _tunnelViewModel.IsInitializing ? "正在加载..." : "正在刷新...";
+            }
+            if (_tunnelsLoadingSubText != null)
+            {
+                _tunnelsLoadingSubText.Text = _tunnelViewModel.IsInitializing ? "正在检查隧道状态" : "正在检查 cloudflared 安装状态";
+            }
+            
+            // Don't hide loading state if we're in the middle of a refresh
+            return;
+        }
+        
+        // Hide loading state
+        if (_tunnelsLoadingState != null)
+        {
+            _tunnelsLoadingState.Visibility = Visibility.Collapsed;
+            System.Diagnostics.Debug.WriteLine($"[UpdateTunnelsUI] Loading state set to Collapsed");
+        }
+        
+        // Show tunnels list
+        TunnelsListView.Visibility = Visibility.Visible;
         
         // Update empty state
         TunnelsEmptyState.Visibility = _tunnelViewModel.Tunnels.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         
-        // Update status bar
+        // Update status bar - tunnel count
         var count = _tunnelViewModel.ActiveTunnelCount;
-        TunnelStatusText.Text = $"{count} active tunnel(s)";
+        TunnelStatusText.Text = $"{count} 个活动隧道";
         TunnelStatusDot.Fill = count > 0 
             ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(46, 204, 113))
             : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(128, 128, 128));
         
+        // Update status bar - cloudflared installation status
+        if (_tunnelViewModel.IsCloudflaredInstalled)
+        {
+            CloudflaredStatusDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(46, 204, 113));
+            CloudflaredStatusText.Text = "已安装 cloudflared";
+        }
+        else
+        {
+            CloudflaredStatusDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(231, 76, 60));
+            CloudflaredStatusText.Text = "未安装 cloudflared";
+        }
+        
         // Update Stop All button visibility
         StopAllTunnelsButton.Visibility = _tunnelViewModel.Tunnels.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         
-        // Update cloudflared installed indicator
+        // Update cloudflared warning
         CloudflaredWarning.Visibility = _tunnelViewModel.IsCloudflaredInstalled ? Visibility.Collapsed : Visibility.Visible;
-        CloudflaredInstalledIndicator.Visibility = _tunnelViewModel.IsCloudflaredInstalled ? Visibility.Visible : Visibility.Collapsed;
         
         // Subscribe to collection changes if not already
         _tunnelViewModel.Tunnels.CollectionChanged -= OnTunnelsCollectionChanged;
@@ -417,10 +522,16 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
+            // Don't update UI if still initializing
+            if (_tunnelViewModel.IsInitializing)
+            {
+                return;
+            }
+            
             TunnelsEmptyState.Visibility = _tunnelViewModel.Tunnels.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             
             var count = _tunnelViewModel.ActiveTunnelCount;
-            TunnelStatusText.Text = $"{count} active tunnel(s)";
+            TunnelStatusText.Text = $"{count} 个活动隧道";
             TunnelStatusDot.Fill = count > 0 
                 ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(46, 204, 113))
                 : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(128, 128, 128));
@@ -429,18 +540,41 @@ public partial class MainWindow : Window
         });
     }
 
-    private void RefreshTunnels_Click(object sender, RoutedEventArgs e)
+    private async void RefreshTunnels_Click(object sender, RoutedEventArgs e)
     {
-        _tunnelViewModel.RecheckInstallation();
+        // Manually show loading state first
+        if (_tunnelsLoadingState != null)
+        {
+            _tunnelsLoadingState.Visibility = Visibility.Visible;
+            System.Diagnostics.Debug.WriteLine($"[Refresh] Loading state set to Visible");
+        }
+        TunnelsListView.Visibility = Visibility.Collapsed;
+        TunnelsEmptyState.Visibility = Visibility.Collapsed;
+        
+        // Update loading text
+        if (_tunnelsLoadingText != null)
+        {
+            _tunnelsLoadingText.Text = "正在刷新...";
+        }
+        if (_tunnelsLoadingSubText != null)
+        {
+            _tunnelsLoadingSubText.Text = "正在检查 cloudflared 安装状态";
+        }
+        
+        // Wait for refresh to complete
+        await _tunnelViewModel.RecheckInstallationAsync();
+        
+        // Update UI after refresh completes
         UpdateTunnelsUI();
+        System.Diagnostics.Debug.WriteLine($"[Refresh] Refresh completed, IsRefreshing={_tunnelViewModel.IsRefreshing}");
     }
 
     private async void StopAllTunnels_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ConfirmDialog(
-            $"Are you sure you want to stop all {_tunnelViewModel.Tunnels.Count} tunnel(s)?",
-            "All public URLs will be terminated immediately.\n\nThis action cannot be undone.",
-            "Stop All Tunnels")
+            $"您确定要停止所有 {_tunnelViewModel.Tunnels.Count} 个隧道吗？",
+            "所有公共 URL 将立即失效。\n\n此操作无法撤销。",
+            "停止所有隧道")
         {
             Owner = this
         };
@@ -452,6 +586,15 @@ public partial class MainWindow : Window
             await _tunnelViewModel.StopAllTunnelsAsync();
             UpdateTunnelsUI();
         }
+    }
+
+    private async void TunnelRestart_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: CloudflareTunnel tunnel })
+            return;
+
+        await _tunnelViewModel.RestartTunnelAsync(tunnel);
+        UpdateTunnelsUI();
     }
 
     private async void TunnelStop_Click(object sender, RoutedEventArgs e)
@@ -494,7 +637,7 @@ public partial class MainWindow : Window
     private void TraySettings_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.SelectedSidebarItem = SidebarItem.Settings;
-        HeaderText.Text = "Settings";
+        HeaderText.Text = "设置";
         Show();
         WindowState = WindowState.Normal;
         Activate();
@@ -568,7 +711,8 @@ public partial class MainWindow : Window
                 {
                     var portMenuItem = new MenuItem
                     {
-                        Header = $"● :{port.Port}  {port.ProcessName} (PID: {port.Pid})",
+                        Header = $":{port.Port}  {port.ProcessName} (PID: {port.Pid})",
+                        Icon = new TextBlock { Text = "●", Foreground = System.Windows.Media.Brushes.Green, FontSize = 10, VerticalAlignment = VerticalAlignment.Center },
                         Tag = port
                     };
                     portMenuItem.Click += async (s, e) =>

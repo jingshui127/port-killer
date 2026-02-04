@@ -1,0 +1,350 @@
+@page "/about"
+@using PortKiller.Blazor.Services
+@inject NavigationManager Navigation
+@inject ThemeService ThemeService
+
+<PageTitle>关于 - PortManager</PageTitle>
+
+<div class="about-container @ThemeService.CurrentTheme">
+    <div class="about-card">
+        <div class="about-header">
+            <div class="logo">
+                <span class="logo-icon">🔌</span>
+            </div>
+            <h1>PortManager</h1>
+            <p class="subtitle">端口管理器</p>
+        </div>
+
+        <div class="about-content">
+            <div class="section">
+                <h2>开发者信息</h2>
+                <div class="info-item">
+                    <span class="label">团队名称</span>
+                    <span class="value">科控物联</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">QQ</span>
+                    <span class="value">2492123056</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>应用功能</h2>
+                <ul class="feature-list">
+                    <li>🔌 实时监控本地端口状态</li>
+                    <li>⚡ 快速终止占用端口的进程</li>
+                    <li>🌐 Cloudflare Tunnel 隧道管理</li>
+                    <li>⭐ 端口收藏功能</li>
+                    <li>👁 端口状态监控与通知</li>
+                    <li>🎨 深色/浅色主题切换</li>
+                    <li>🔍 端口搜索与筛选</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>技术栈</h2>
+                <div class="tech-stack">
+                    <div class="tech-item">
+                        <span class="tech-icon">🔷</span>
+                        <span class="tech-name">.NET 10</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="tech-icon">🌐</span>
+                        <span class="tech-name">Blazor Server</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="tech-icon">🎨</span>
+                        <span class="tech-name">MASA Blazor</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="tech-icon">☁️</span>
+                        <span class="tech-name">Cloudflare Tunnel</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>版本信息</h2>
+                <div class="info-item">
+                    <span class="label">版本</span>
+                    <span class="value">1.0.0</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">平台</span>
+                    <span class="value">Blazor Web</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="about-footer">
+            <button class="btn btn-primary" @onclick="GoBack">
+                <span class="icon">←</span>
+                <text>返回</text>
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .about-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #1e1e1e;
+        color: #e0e0e0;
+    }
+
+    .about-card {
+        max-width: 800px;
+        width: 100%;
+        background: #2a2a2a;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        overflow: hidden;
+    }
+
+    .about-header {
+        text-align: center;
+        padding: 40px 40px 30px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .logo {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(10px);
+    }
+
+    .logo-icon {
+        font-size: 40px;
+    }
+
+    .about-header h1 {
+        font-size: 36px;
+        margin: 0 0 10px 0;
+        color: white;
+        font-weight: 700;
+    }
+
+    .about-header .subtitle {
+        font-size: 16px;
+        color: rgba(255, 255, 255, 0.9);
+        margin: 0;
+    }
+
+    .about-content {
+        padding: 40px;
+    }
+
+    .section {
+        margin-bottom: 32px;
+    }
+
+    .section:last-child {
+        margin-bottom: 0;
+    }
+
+    .section h2 {
+        font-size: 20px;
+        margin: 0 0 16px 0;
+        color: #e0e0e0;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .section h2::before {
+        content: "";
+        width: 4px;
+        height: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 2px;
+    }
+
+    .info-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #353535;
+    }
+
+    .info-item:last-child {
+        border-bottom: none;
+    }
+
+    .info-item .label {
+        font-size: 14px;
+        color: #a0a0a0;
+        font-weight: 500;
+    }
+
+    .info-item .value {
+        font-size: 14px;
+        color: #e0e0e0;
+        font-weight: 600;
+    }
+
+    .feature-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 12px;
+    }
+
+    .feature-list li {
+        padding: 12px 16px;
+        background: #353535;
+        border-radius: 8px;
+        font-size: 14px;
+        color: #e0e0e0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+    }
+
+    .feature-list li:hover {
+        background: #404040;
+        transform: translateX(4px);
+    }
+
+    .tech-stack {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+    }
+
+    .tech-item {
+        padding: 16px;
+        background: #353535;
+        border-radius: 8px;
+        text-align: center;
+        transition: all 0.2s ease;
+    }
+
+    .tech-item:hover {
+        background: #404040;
+        transform: translateY(-2px);
+    }
+
+    .tech-icon {
+        font-size: 32px;
+        display: block;
+        margin-bottom: 8px;
+    }
+
+    .tech-name {
+        font-size: 14px;
+        color: #e0e0e0;
+        font-weight: 600;
+    }
+
+    .about-footer {
+        padding: 20px 40px;
+        background: #252525;
+        display: flex;
+        justify-content: center;
+    }
+
+    .btn {
+        padding: 12px 32px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn .icon {
+        font-size: 16px;
+    }
+
+    .btn text {
+        font-size: 14px;
+    }
+
+    .about-container.light {
+        background: #f5f5f5;
+        color: #333333;
+    }
+
+    .about-container.light .about-card {
+        background: #ffffff;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .about-container.light .section h2 {
+        color: #333333;
+    }
+
+    .about-container.light .info-item {
+        border-color: #e0e0e0;
+    }
+
+    .about-container.light .info-item .label {
+        color: #666666;
+    }
+
+    .about-container.light .info-item .value {
+        color: #333333;
+    }
+
+    .about-container.light .feature-list li {
+        background: #f5f5f5;
+        color: #333333;
+    }
+
+    .about-container.light .feature-list li:hover {
+        background: #e8e8e8;
+    }
+
+    .about-container.light .tech-item {
+        background: #f5f5f5;
+    }
+
+    .about-container.light .tech-item:hover {
+        background: #e8e8e8;
+    }
+
+    .about-container.light .tech-name {
+        color: #333333;
+    }
+
+    .about-container.light .about-footer {
+        background: #f0f0f0;
+    }
+</style>
+
+@code {
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

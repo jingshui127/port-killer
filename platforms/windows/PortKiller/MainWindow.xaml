@@ -246,7 +246,7 @@
                     <!-- App Title (Draggable) -->
                     <Border Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                         <StackPanel Orientation="Horizontal" Margin="20,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="PortKiller" FontSize="15" FontWeight="SemiBold" Foreground="#E0E0E0" VerticalAlignment="Center"/>
+                                <TextBlock Text="PortKiller" FontSize="15" FontWeight="SemiBold" Foreground="#E0E0E0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
 
@@ -261,31 +261,31 @@
                         <ScrollViewer VerticalScrollBarVisibility="Hidden" Margin="12">
                             <StackPanel>
                                 <!-- Categories Section -->
-                                <TextBlock Text="CATEGORIES" FontSize="11" FontWeight="Bold" Foreground="#707070" Margin="12,12,0,8"/>
-                                <Button Content="📋  All Ports" Click="SidebarButton_Click" Tag="AllPorts" Style="{StaticResource SidebarButton}"/>
-                                <Button Content="⭐  Favorites" Click="SidebarButton_Click" Tag="Favorites" Style="{StaticResource SidebarButton}"/>
-                                <Button Content="👁  Watched" Click="SidebarButton_Click" Tag="Watched" Style="{StaticResource SidebarButton}"/>
+                                <TextBlock Text="分类" FontSize="11" FontWeight="Bold" Foreground="#707070" Margin="12,12,0,8"/>
+                                <Button Content="📋  所有端口" Click="SidebarButton_Click" Tag="AllPorts" Style="{StaticResource SidebarButton}"/>
+                                <Button Content="⭐  收藏" Click="SidebarButton_Click" Tag="Favorites" Style="{StaticResource SidebarButton}"/>
+                                <Button Content="👁  监控" Click="SidebarButton_Click" Tag="Watched" Style="{StaticResource SidebarButton}"/>
 
                                 <!-- Process Types Section -->
-                                <TextBlock Text="PROCESS TYPES" FontSize="11" FontWeight="Bold" Foreground="#707070" Margin="12,24,0,8"/>
-                                <Button Content="🌐  Web Server" Click="SidebarButton_Click" Tag="WebServer" Style="{StaticResource SidebarButton}"/>
-                                <Button Content="💾  Database" Click="SidebarButton_Click" Tag="Database" Style="{StaticResource SidebarButton}"/>
-                                <Button Content="⚙  Development" Click="SidebarButton_Click" Tag="Development" Style="{StaticResource SidebarButton}"/>
-                                <Button Content="🖥  System" Click="SidebarButton_Click" Tag="System" Style="{StaticResource SidebarButton}"/>
-                                <Button Content="📦  Other" Click="SidebarButton_Click" Tag="Other" Style="{StaticResource SidebarButton}"/>
+                                <TextBlock Text="进程类型" FontSize="11" FontWeight="Bold" Foreground="#707070" Margin="12,24,0,8"/>
+                                <Button Content="🌐  Web 服务器" Click="SidebarButton_Click" Tag="WebServer" Style="{StaticResource SidebarButton}"/>
+                                <Button Content="💾  数据库" Click="SidebarButton_Click" Tag="Database" Style="{StaticResource SidebarButton}"/>
+                                <Button Content="⚙  开发工具" Click="SidebarButton_Click" Tag="Development" Style="{StaticResource SidebarButton}"/>
+                                <Button Content="🖥  系统" Click="SidebarButton_Click" Tag="System" Style="{StaticResource SidebarButton}"/>
+                                <Button Content="📦  其他" Click="SidebarButton_Click" Tag="Other" Style="{StaticResource SidebarButton}"/>
 
                                 <!-- Cloudflare Tunnels Section -->
-                                <TextBlock Text="SERVICES" FontSize="11" FontWeight="Bold" Foreground="#707070" Margin="12,24,0,8"/>
+                                <TextBlock Text="服务" FontSize="11" FontWeight="Bold" Foreground="#707070" Margin="12,24,0,8"/>
                                 <Button Click="SidebarButton_Click" Tag="CloudflareTunnels" Style="{StaticResource SidebarButton}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="☁" Foreground="#F4AB3A" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Cloudflare Tunnels"/>
+                                        <TextBlock Text="Cloudflare 隧道"/>
                                     </StackPanel>
                                 </Button>
 
                                 <!-- Settings Section -->
-                                <TextBlock Text="SETTINGS" FontSize="11" FontWeight="Bold" Foreground="#707070" Margin="12,24,0,8"/>
-                                <Button Content="⚙  Settings" Click="SidebarButton_Click" Tag="Settings" Style="{StaticResource SidebarButton}"/>
+                                <TextBlock Text="设置" FontSize="11" FontWeight="Bold" Foreground="#707070" Margin="12,24,0,8"/>
+                                <Button Content="⚙  设置" Click="SidebarButton_Click" Tag="Settings" Style="{StaticResource SidebarButton}"/>
                             </StackPanel>
                         </ScrollViewer>
                     </Border>
@@ -319,7 +319,7 @@
                                                  CaretBrush="#E0E0E0"
                                                  VerticalContentAlignment="Center"
                                                  TextChanged="SearchBox_TextChanged"/>
-                                        <TextBlock Text="Search ports, processes..." 
+                                        <TextBlock Text="搜索端口、进程..." 
                                                    FontSize="13" 
                                                    Foreground="#606060" 
                                                    VerticalAlignment="Center" 
@@ -365,7 +365,7 @@
 
                             <!-- Solid Grey Header -->
                             <Border Grid.Row="0" BorderThickness="0,0,0,1" Padding="24,16" Background="#252525" BorderBrush="#353535">
-                                <TextBlock x:Name="HeaderText" Text="All Ports" FontSize="20" FontWeight="SemiBold" Foreground="#E0E0E0"/>
+                                <TextBlock x:Name="HeaderText" Text="所有端口" FontSize="20" FontWeight="SemiBold" Foreground="#E0E0E0"/>
                             </Border>
 
                             <!-- Ports ListView -->
@@ -392,13 +392,13 @@
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0">
                                                         <TextBlock Text="{Binding ProcessName}" FontSize="15" FontWeight="SemiBold" Foreground="#E0E0E0"/>
                                                         <TextBlock FontSize="12" Foreground="#A0A0A0" Margin="0,4,0,0">
-                                                            <Run Text="Address:"/>
+                                                            <Run Text="地址:"/>
                                                             <Run Text="{Binding Address}" FontWeight="SemiBold"/>
                                                         </TextBlock>
                                                         <TextBlock FontSize="11" Foreground="#808080" Margin="0,2,0,0">
                                                             <Run Text="PID:"/>
                                                             <Run Text="{Binding Pid}"/>
-                                                            <Run Text=" • User:"/>
+                                                            <Run Text=" • 用户:"/>
                                                             <Run Text="{Binding User}"/>
                                                         </TextBlock>
                                                     </StackPanel>
@@ -412,7 +412,7 @@
                                                                 FontSize="16"
                                                                 FontWeight="Normal"
                                                                 Cursor="Hand"
-                                                                ToolTip="Kill Process">
+                                                                ToolTip="终止进程">
                                                             <Button.Style>
                                                                 <Style TargetType="Button">
                                                                     <Setter Property="Background" Value="Transparent"/>
@@ -453,17 +453,55 @@
                             <!-- Empty State -->
                             <StackPanel Grid.Row="1" x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
                                 <TextBlock Text="📊" FontSize="64" HorizontalAlignment="Center" Margin="0,0,0,16" Opacity="0.2"/>
-                                <TextBlock Text="No ports found" FontSize="18" Foreground="#A0A0A0" HorizontalAlignment="Center" FontWeight="SemiBold"/>
-                                <TextBlock Text="Start some services to see them here" FontSize="13" Foreground="#808080" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                <TextBlock Text="未找到端口" FontSize="18" Foreground="#A0A0A0" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                <TextBlock Text="启动一些服务以在此处查看" FontSize="13" Foreground="#808080" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                            </StackPanel>
+
+                            <!-- Loading State -->
+                            <StackPanel Grid.Row="1" x:Name="LoadingState" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                                <TextBlock Text="📊" FontSize="64" HorizontalAlignment="Center" Margin="0,0,0,16" Opacity="0.2"/>
+                                <TextBlock Text="正在加载..." FontSize="18" Foreground="#A0A0A0" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
+                                    <Grid Width="20" Height="20" Margin="0,0,8,0">
+                                        <Ellipse Stroke="#f39c12" 
+                                                 StrokeThickness="2"
+                                                 StrokeDashArray="12,6"
+                                                 RenderTransformOrigin="0.5,0.5">
+                                            <Ellipse.RenderTransform>
+                                                <RotateTransform x:Name="LoadingSpinner" Angle="0"/>
+                                            </Ellipse.RenderTransform>
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Visibility, ElementName=LoadingState}" Value="Visible">
+                                                            <DataTrigger.EnterActions>
+                                                                <BeginStoryboard x:Name="SpinAnimation">
+                                                                    <Storyboard RepeatBehavior="Forever">
+                                                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                                       From="0" To="360" Duration="0:0:1"/>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </DataTrigger.EnterActions>
+                                                            <DataTrigger.ExitActions>
+                                                                <StopStoryboard BeginStoryboardName="SpinAnimation"/>
+                                                            </DataTrigger.ExitActions>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+                                    </Grid>
+                                    <TextBlock Text="正在扫描端口" FontSize="13" Foreground="#808080"/>
+                                </StackPanel>
                             </StackPanel>
 
                             <!-- Status Bar - Solid Grey -->
                             <Border Grid.Row="2" BorderThickness="0,1,0,0" Padding="24,10" Background="#252525" BorderBrush="#353535">
                                 <Grid>
-                                    <TextBlock x:Name="StatusText" Text="Ready" FontSize="11" Foreground="#808080" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="StatusText" Text="就绪" FontSize="11" Foreground="#808080" VerticalAlignment="Center"/>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Ellipse Width="6" Height="6" Fill="#2ecc71" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Auto-refresh" FontSize="11" Foreground="#808080" VerticalAlignment="Center"/>
+                                        <TextBlock Text="自动刷新" FontSize="11" Foreground="#808080" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -473,18 +511,18 @@
                         <Border Grid.Column="1" x:Name="DetailPanel" BorderThickness="1,0,0,0" Padding="24" Visibility="Collapsed" CornerRadius="0,0,16,0" Background="#1E1E1E" BorderBrush="#353535">
                             <ScrollViewer VerticalScrollBarVisibility="Hidden">
                                 <StackPanel>
-                                    <TextBlock Text="Port Details" FontSize="18" FontWeight="Bold" Foreground="#E0E0E0" Margin="0,0,0,20"/>
+                                    <TextBlock Text="端口详情" FontSize="18" FontWeight="Bold" Foreground="#E0E0E0" Margin="0,0,0,20"/>
 
                                     <!-- Detail Items - Solid Grey -->
                                     <StackPanel Margin="0,0,0,16">
-                                        <TextBlock Text="PORT" FontSize="10" FontWeight="Bold" Foreground="#808080" Margin="0,0,0,4"/>
+                                        <TextBlock Text="端口" FontSize="10" FontWeight="Bold" Foreground="#808080" Margin="0,0,0,4"/>
                                         <Border CornerRadius="8" Padding="12,8" Background="#2A2A2A">
                                             <TextBlock x:Name="DetailPort" Text="-" FontSize="14" Foreground="#E0E0E0" FontWeight="SemiBold"/>
                                         </Border>
                                     </StackPanel>
 
                                     <StackPanel Margin="0,0,0,16">
-                                        <TextBlock Text="PROCESS" FontSize="10" FontWeight="Bold" Foreground="#808080" Margin="0,0,0,4"/>
+                                        <TextBlock Text="进程" FontSize="10" FontWeight="Bold" Foreground="#808080" Margin="0,0,0,4"/>
                                         <Border CornerRadius="8" Padding="12,8" Background="#2A2A2A">
                                             <TextBlock x:Name="DetailProcess" Text="-" TextWrapping="Wrap" FontSize="14" Foreground="#E0E0E0"/>
                                         </Border>
@@ -504,7 +542,7 @@
                                         </StackPanel>
 
                                         <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                            <TextBlock Text="USER" FontSize="10" FontWeight="Bold" Foreground="#808080" Margin="0,0,0,4"/>
+                                            <TextBlock Text="用户" FontSize="10" FontWeight="Bold" Foreground="#808080" Margin="0,0,0,4"/>
                                             <Border CornerRadius="8" Padding="12,8" Background="#2A2A2A">
                                                 <TextBlock x:Name="DetailUser" Text="-" FontSize="14" Foreground="#E0E0E0"/>
                                             </Border>
@@ -512,14 +550,14 @@
                                     </Grid>
 
                                     <StackPanel Margin="0,0,0,16">
-                                        <TextBlock Text="ADDRESS" FontSize="10" FontWeight="Bold" Foreground="#808080" Margin="0,0,0,4"/>
+                                        <TextBlock Text="地址" FontSize="10" FontWeight="Bold" Foreground="#808080" Margin="0,0,0,4"/>
                                         <Border CornerRadius="8" Padding="12,8" Background="#2A2A2A">
                                             <TextBlock x:Name="DetailAddress" Text="-" FontSize="14" Foreground="#E0E0E0"/>
                                         </Border>
                                     </StackPanel>
 
                                     <StackPanel Margin="0,0,0,20">
-                                        <TextBlock Text="COMMAND" FontSize="10" FontWeight="Bold" Foreground="#808080" Margin="0,0,0,4"/>
+                                        <TextBlock Text="命令" FontSize="10" FontWeight="Bold" Foreground="#808080" Margin="0,0,0,4"/>
                                         <Border CornerRadius="8" Padding="12,8" Background="#2A2A2A">
                                             <TextBlock x:Name="DetailCommand" Text="-" TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0"/>
                                         </Border>
@@ -534,19 +572,19 @@
                                                 HorizontalAlignment="Stretch">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="☁" Foreground="#F4AB3A" Margin="0,0,6,0"/>
-                                                <TextBlock Text="Share via Tunnel"/>
+                                                <TextBlock Text="通过隧道分享"/>
                                             </StackPanel>
                                         </Button>
 
                                         <Button x:Name="FavoriteButton" 
-                                                Content="⭐  Add to Favorites" 
+                                                Content="⭐  添加到收藏" 
                                                 Click="FavoriteButton_Click"
                                                 Style="{StaticResource OutlineButton}"
                                                 Margin="0,0,0,10"
                                                 HorizontalAlignment="Stretch"/>
 
                                         <Button x:Name="WatchButton" 
-                                                Content="👁  Watch Port" 
+                                                Content="👁  监控端口" 
                                                 Click="WatchButton_Click"
                                                 Style="{StaticResource OutlineButton}"
                                                 HorizontalAlignment="Stretch"/>
@@ -569,11 +607,11 @@
                             <Grid>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="☁" FontSize="20" Margin="0,0,10,0" Foreground="#F4AB3A"/>
-                                    <TextBlock Text="Cloudflare Tunnels" FontSize="20" FontWeight="SemiBold" Foreground="#E0E0E0"/>
+                                    <TextBlock Text="Cloudflare 隧道" FontSize="20" FontWeight="SemiBold" Foreground="#E0E0E0"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <Button x:Name="StopAllTunnelsButton" 
-                                            Content="Stop All" 
+                                            Content="停止全部" 
                                             Click="StopAllTunnels_Click"
                                             Visibility="Collapsed"
                                             Margin="0,0,8,0">
@@ -602,7 +640,7 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="↻ Refresh" Click="RefreshTunnels_Click" Style="{StaticResource ModernButton}"/>
+                                    <Button Content="↻ 刷新" Click="RefreshTunnels_Click" Style="{StaticResource ModernButton}"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -621,14 +659,14 @@
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                     <TextBlock Text="⚠" FontSize="20" Margin="0,0,12,0" Foreground="#f39c12"/>
-                                    <TextBlock Text="cloudflared Not Installed" FontSize="16" FontWeight="Bold" Foreground="#f39c12" VerticalAlignment="Center"/>
+                                    <TextBlock Text="未安装 cloudflared" FontSize="16" FontWeight="Bold" Foreground="#f39c12" VerticalAlignment="Center"/>
                                 </StackPanel>
                                 <TextBlock TextWrapping="Wrap" Foreground="#E0E0E0" Margin="32,0,0,8">
-                                    To use Cloudflare Tunnels, you need to install cloudflared:
+                                    要使用 Cloudflare 隧道，您需要安装 cloudflared：
                                 </TextBlock>
                                 <TextBlock TextWrapping="Wrap" Foreground="#B0B0B0" Margin="32,0,0,0" FontFamily="Consolas" FontSize="11">
-                                    • Download from: https://github.com/cloudflare/cloudflared/releases
-                                    • Or use Chocolatey: choco install cloudflared
+                                    • 从以下地址下载：https://github.com/cloudflare/cloudflared/releases
+                                    • 或使用 Chocolatey：choco install cloudflared
                                 </TextBlock>
                             </StackPanel>
                         </Border>
@@ -661,7 +699,7 @@
                                                 <!-- Port and URL Info -->
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                     <TextBlock FontSize="18" FontWeight="Bold" Foreground="#E0E0E0" Margin="0,0,0,4">
-                                                        <Run Text="Port"/>
+                                                        <Run Text="端口"/>
                                                         <Run Text="{Binding Port}" Foreground="#3498db"/>
                                                     </TextBlock>
                                                     <TextBlock Text="{Binding DisplayUrl}" 
@@ -692,7 +730,7 @@
                                                     </Border>
 
                                                     <!-- Copy Button -->
-                                                    <Button ToolTip="Copy URL"
+                                                    <Button ToolTip="复制 URL"
                                                             Click="TunnelCopy_Click"
                                                             Tag="{Binding}"
                                                             Style="{StaticResource ModernButton}"
@@ -703,7 +741,7 @@
                                                     </Button>
 
                                                     <!-- Open in Browser Button -->
-                                                    <Button ToolTip="Open in Browser"
+                                                    <Button ToolTip="在浏览器中打开"
                                                             Click="TunnelOpen_Click"
                                                             Tag="{Binding}"
                                                             Style="{StaticResource ModernButton}"
@@ -713,8 +751,20 @@
                                                         <TextBlock Text="🌐" FontSize="16"/>
                                                     </Button>
 
+                                                    <!-- Restart Button -->
+                                                    <Button ToolTip="重新生成"
+                                                            Click="TunnelRestart_Click"
+                                                            Tag="{Binding}"
+                                                            Style="{StaticResource ModernButton}"
+                                                            Width="36" Height="36"
+                                                            Padding="6"
+                                                            Background="#f39c12"
+                                                            Margin="0,0,4,0">
+                                                        <TextBlock Text="🔄" FontSize="16"/>
+                                                    </Button>
+
                                                     <!-- Stop Button -->
-                                                    <Button ToolTip="Stop Tunnel"
+                                                    <Button ToolTip="停止隧道"
                                                             Click="TunnelStop_Click"
                                                             Tag="{Binding}"
                                                             Width="36" Height="36"
@@ -751,11 +801,51 @@
                             </ItemsControl>
                         </ScrollViewer>
 
+                        <!-- Tunnels Loading State -->
+                        <StackPanel Grid.Row="1" x:Name="TunnelsLoadingState" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                            <TextBlock Text="☁" FontSize="64" HorizontalAlignment="Center" Margin="0,0,0,16" Opacity="0.5" Foreground="#F4AB3A">
+                                <TextBlock.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                               From="0.3" To="0.7" Duration="0:0:1.5"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </TextBlock.Triggers>
+                            </TextBlock>
+                            <TextBlock x:Name="TunnelsLoadingText" Text="正在加载..." FontSize="20" Foreground="#E0E0E0" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
+                                <Ellipse Width="24" Height="24" 
+                                         Stroke="#3498db" 
+                                         StrokeThickness="3"
+                                         StrokeDashArray="18,9"
+                                         Margin="0,0,12,0">
+                                    <Ellipse.RenderTransform>
+                                        <RotateTransform x:Name="TunnelsLoadingSpinner" CenterX="12" CenterY="12"/>
+                                    </Ellipse.RenderTransform>
+                                    <Ellipse.Triggers>
+                                        <EventTrigger RoutedEvent="Ellipse.Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetName="TunnelsLoadingSpinner"
+                                                                   Storyboard.TargetProperty="Angle"
+                                                                   From="0" To="360" Duration="0:0:0.8"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Ellipse.Triggers>
+                                </Ellipse>
+                                <TextBlock x:Name="TunnelsLoadingSubText" Text="正在检查隧道状态" FontSize="14" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+
                         <!-- Tunnels Empty State -->
-                        <StackPanel Grid.Row="1" x:Name="TunnelsEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Visible">
+                        <StackPanel Grid.Row="1" x:Name="TunnelsEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
                             <TextBlock Text="☁" FontSize="64" HorizontalAlignment="Center" Margin="0,0,0,16" Opacity="0.3" Foreground="#F4AB3A"/>
-                            <TextBlock Text="No Active Tunnels" FontSize="20" Foreground="#A0A0A0" HorizontalAlignment="Center" FontWeight="SemiBold"/>
-                            <TextBlock Text="Start a tunnel from the port list to create a public URL" 
+                            <TextBlock Text="无活动隧道" FontSize="20" Foreground="#A0A0A0" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                            <TextBlock Text="从端口列表启动隧道以创建公共 URL" 
                                        FontSize="13" 
                                        Foreground="#808080" 
                                        HorizontalAlignment="Center" 
@@ -767,7 +857,7 @@
                                        HorizontalAlignment="Center" 
                                        TextAlignment="Center"
                                        MaxWidth="400">
-                                💡 Tip: Cloudflare Tunnels make your localhost ports accessible from anywhere on the internet with automatic HTTPS
+                                💡 提示：Cloudflare 隧道通过自动 HTTPS 使您的本地主机端口可从互联网的任何位置访问
                             </TextBlock>
                         </StackPanel>
 
@@ -776,11 +866,19 @@
                             <Grid>
                                 <StackPanel Orientation="Horizontal">
                                     <Ellipse x:Name="TunnelStatusDot" Width="6" Height="6" Fill="#808080" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                    <TextBlock x:Name="TunnelStatusText" Text="0 active tunnel(s)" FontSize="11" Foreground="#808080" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="TunnelStatusText" Text="0 个活动隧道" FontSize="11" Foreground="#808080" VerticalAlignment="Center"/>
                                 </StackPanel>
-                                <StackPanel x:Name="CloudflaredInstalledIndicator" Orientation="Horizontal" HorizontalAlignment="Right" Visibility="Collapsed">
-                                    <TextBlock Text="✓" FontSize="14" Foreground="#2ecc71" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                    <TextBlock Text="cloudflared installed" FontSize="11" Foreground="#808080" VerticalAlignment="Center"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <!-- Cloudflared Installation Status -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                                        <Ellipse x:Name="CloudflaredStatusDot" Width="6" Height="6" Fill="#e74c3c" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <TextBlock x:Name="CloudflaredStatusText" Text="未安装 cloudflared" FontSize="11" Foreground="#808080" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <!-- Auto-refresh Indicator -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="6" Height="6" Fill="#2ecc71" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <TextBlock Text="自动刷新" FontSize="11" Foreground="#808080" VerticalAlignment="Center"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </Grid>
                         </Border>

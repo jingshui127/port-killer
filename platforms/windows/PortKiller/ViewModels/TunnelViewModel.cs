@@ -16,8 +16,11 @@ public class TunnelViewModel : INotifyPropertyChanged
 {
     private readonly TunnelService _tunnelService;
     private readonly NotificationService _notificationService;
+    private readonly SettingsService _settingsService;
     private readonly DispatcherTimer _uptimeTimer;
     private bool _isCloudflaredInstalled;
+    private bool _isInitializing;
+    private bool _isRefreshing;
 
     public ObservableCollection<CloudflareTunnel> Tunnels { get; }
 
@@ -27,12 +30,25 @@ public class TunnelViewModel : INotifyPropertyChanged
         set => SetField(ref _isCloudflaredInstalled, value);
     }
 
+    public bool IsInitializing
+    {
+        get => _isInitializing;
+        set => SetField(ref _isInitializing, value);
+    }
+
+    public bool IsRefreshing
+    {
+        get => _isRefreshing;
+        set => SetField(ref _isRefreshing, value);
+    }
+
     public int ActiveTunnelCount => Tunnels.Count(t => t.Status == TunnelStatus.Active);
 
-    public TunnelViewModel(TunnelService tunnelService, NotificationService notificationService)
+    public TunnelViewModel(TunnelService tunnelService, NotificationService notificationService, SettingsService settingsService)
     {
         _tunnelService = tunnelService;
         _notificationService = notificationService;
+        _settingsService = settingsService;
         Tunnels = new ObservableCollection<CloudflareTunnel>();
 
         // Check if cloudflared is installed
@@ -45,9 +61,186 @@ public class TunnelViewModel : INotifyPropertyChanged
         };
         _uptimeTimer.Tick += (s, e) => UpdateUptimes();
         _uptimeTimer.Start();
+    }
 
-        // Clean up orphaned tunnels from previous sessions
-        Task.Run(async () => await _tunnelService.CleanupOrphanedTunnelsAsync());
+    /// <summary>
+    /// Initializes the tunnel view model and restores saved tunnels
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        // Set initializing state
+        IsInitializing = true;
+        OnPropertyChanged(nameof(IsInitializing));
+
+        // Load saved tunnels from settings
+        var savedTunnels = _settingsService.GetActiveTunnels();
+        
+        // Check for existing cloudflared processes first
+        var existingProcesses = Process.GetProcessesByName("cloudflared");
+        var matchedProcessIds = new HashSet<int>();
+
+        // Restore each saved tunnel
+        foreach (var savedTunnel in savedTunnels)
+        {
+            // Check if port is already in use by existing cloudflared process
+            var existingProcess = _tunnelService.GetProcessForPort(savedTunnel.Port);
+            
+            if (existingProcess != null)
+            {
+                // Port is already in use, connect to existing process
+                Debug.WriteLine($"Found existing cloudflared process for port {savedTunnel.Port}");
+                matchedProcessIds.Add(existingProcess.Id);
+                
+                // Notify user that we're reusing existing tunnel
+                _notificationService.Notify(
+                    "隧道已恢复",
+                    $"端口 {savedTunnel.Port} 的隧道已恢复，使用现有进程"
+                );
+                
+                // Create tunnel object and use saved URL if available
+                var tunnel = new CloudflareTunnel(savedTunnel.Port)
+                {
+                    Status = TunnelStatus.Active,
+                    TunnelUrl = savedTunnel.TunnelUrl, // Re-use saved URL
+                    ProcessId = existingProcess.Id,
+                    StartTime = existingProcess.StartTime
+                };
+                
+                Tunnels.Add(tunnel);
+                
+                // Attach to existing process
+                _tunnelService.AttachTunnel(tunnel, existingProcess);
+            }
+            else
+            {
+                // Port is not in use, start new tunnel
+                var tunnel = new CloudflareTunnel(savedTunnel.Port)
+                {
+                    Status = TunnelStatus.Starting
+                };
+                
+                Tunnels.Add(tunnel);
+                
+                // Start the tunnel
+                try
+                {
+                    await StartTunnelInternalAsync(tunnel);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to restore tunnel for port {tunnel.Port}: {ex.Message}");
+                    tunnel.Status = TunnelStatus.Error;
+                    tunnel.LastError = ex.Message;
+                }
+            }
+        }
+
+        // Clean up ONLY the cloudflared processes that aren't being managed by us
+        await Task.Run(() => {
+            foreach (var process in existingProcesses)
+            {
+                try {
+                    if (!matchedProcessIds.Contains(process.Id)) {
+                        // Check if it's a tunnel process
+                        var commandLine = _tunnelService.GetProcessCommandLine(process.Id);
+                        if (commandLine != null && commandLine.Contains("tunnel") && commandLine.Contains("--url"))
+                        {
+                            process.Kill();
+                            Debug.WriteLine($"Killed truly orphaned cloudflared process (PID: {process.Id})");
+                        }
+                    }
+                } catch { }
+            }
+        });
+
+        // Clear initializing state
+        IsInitializing = false;
+        OnPropertyChanged(nameof(IsInitializing));
+        OnPropertyChanged(nameof(ActiveTunnelCount));
+    }
+
+    /// <summary>
+    /// Starts a tunnel internally (without duplicate check)
+    /// </summary>
+    private async Task StartTunnelInternalAsync(CloudflareTunnel tunnel)
+    {
+        if (!IsCloudflaredInstalled)
+        {
+            MessageBox.Show(
+                "未安装 cloudflared。请安装它以使用 Cloudflare 隧道。\n\n" +
+                "安装选项：\n" +
+                "1. 从以下地址下载：https://github.com/cloudflare/cloudflared/releases\n" +
+                "2. 或使用 Chocolatey：choco install cloudflared",
+                "找不到 cloudflared",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        // Set up handlers
+        _tunnelService.SetUrlHandler(tunnel.Id, url =>
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                tunnel.TunnelUrl = url;
+                tunnel.Status = TunnelStatus.Active;
+                tunnel.StartTime = DateTime.Now;
+
+                // Auto-copy URL to clipboard
+                CopyUrlToClipboard(url);
+
+                // Send notification
+                _notificationService.Notify(
+                    "隧道已激活",
+                    $"端口 {tunnel.Port} 现在可以公开访问：\n{ShortenUrl(url)}");
+
+                // Save active tunnels to settings
+                SaveActiveTunnels();
+
+                OnPropertyChanged(nameof(ActiveTunnelCount));
+            });
+        });
+
+        _tunnelService.SetErrorHandler(tunnel.Id, error =>
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                tunnel.LastError = error;
+                if (tunnel.Status != TunnelStatus.Active)
+                {
+                    tunnel.Status = TunnelStatus.Error;
+                }
+                Debug.WriteLine($"Tunnel error: {error}");
+            });
+        });
+
+        try
+        {
+            await _tunnelService.StartTunnelAsync(tunnel);
+
+            // Wait a bit to see if URL is detected
+            await Task.Delay(3000);
+
+            if (tunnel.Status == TunnelStatus.Starting)
+            {
+                // Still starting, URL should appear soon
+                Debug.WriteLine($"Tunnel for port {tunnel.Port} is starting, waiting for URL...");
+            }
+        }
+        catch (Exception ex)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                tunnel.Status = TunnelStatus.Error;
+                tunnel.LastError = ex.Message;
+                
+                MessageBox.Show(
+                    $"Failed to start tunnel for port {tunnel.Port}:\n{ex.Message}",
+                    "Tunnel Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            });
+        }
     }
 
     /// <summary>
@@ -58,11 +251,11 @@ public class TunnelViewModel : INotifyPropertyChanged
         if (!IsCloudflaredInstalled)
         {
             MessageBox.Show(
-                "cloudflared is not installed. Please install it to use Cloudflare Tunnels.\n\n" +
-                "Installation options:\n" +
-                "1. Download from: https://github.com/cloudflare/cloudflared/releases\n" +
-                "2. Or use Chocolatey: choco install cloudflared",
-                "cloudflared Not Found",
+                "未安装 cloudflared。请安装它以使用 Cloudflare 隧道。\n\n" +
+                "安装选项：\n" +
+                "1. 从以下地址下载：https://github.com/cloudflare/cloudflared/releases\n" +
+                "2. 或使用 Chocolatey：choco install cloudflared",
+                "找不到 cloudflared",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;
@@ -85,7 +278,11 @@ public class TunnelViewModel : INotifyPropertyChanged
             Status = TunnelStatus.Starting
         };
 
-        Application.Current.Dispatcher.Invoke(() => Tunnels.Add(tunnel));
+        Application.Current.Dispatcher.Invoke(() => 
+        {
+            Tunnels.Add(tunnel);
+            SaveActiveTunnels();
+        });
 
         // Set up handlers
         _tunnelService.SetUrlHandler(tunnel.Id, url =>
@@ -101,8 +298,11 @@ public class TunnelViewModel : INotifyPropertyChanged
 
                 // Send notification
                 _notificationService.Notify(
-                    "Tunnel Active",
-                    $"Port {tunnel.Port} is now public at\n{ShortenUrl(url)}");
+                    "隧道已激活",
+                    $"端口 {tunnel.Port} 现在可以公开访问：\n{ShortenUrl(url)}");
+
+                // Save active tunnels to settings
+                SaveActiveTunnels();
 
                 OnPropertyChanged(nameof(ActiveTunnelCount));
             });
@@ -142,8 +342,8 @@ public class TunnelViewModel : INotifyPropertyChanged
                 tunnel.LastError = ex.Message;
                 
                 MessageBox.Show(
-                    $"Failed to start tunnel for port {port}:\n{ex.Message}",
-                    "Tunnel Error",
+                    $"为端口 {port} 启动隧道失败：\n{ex.Message}",
+                    "隧道错误",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             });
@@ -160,16 +360,51 @@ public class TunnelViewModel : INotifyPropertyChanged
         try
         {
             await _tunnelService.StopTunnelAsync(tunnel.Id);
-            
+
             Application.Current.Dispatcher.Invoke(() =>
             {
                 Tunnels.Remove(tunnel);
                 OnPropertyChanged(nameof(ActiveTunnelCount));
+                
+                // Save updated tunnels list
+                SaveActiveTunnels();
             });
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Error stopping tunnel: {ex.Message}");
+            tunnel.Status = TunnelStatus.Error;
+            tunnel.LastError = ex.Message;
+        }
+    }
+
+    /// <summary>
+    /// Restarts a tunnel (stop and start again to generate new URL)
+    /// </summary>
+    public async Task RestartTunnelAsync(CloudflareTunnel tunnel)
+    {
+        tunnel.Status = TunnelStatus.Stopping;
+
+        try
+        {
+            // Stop the tunnel
+            await _tunnelService.StopTunnelAsync(tunnel.Id);
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                Tunnels.Remove(tunnel);
+                OnPropertyChanged(nameof(ActiveTunnelCount));
+            });
+
+            // Wait a moment for cleanup
+            await Task.Delay(500);
+
+            // Start a new tunnel for the same port
+            await StartTunnelAsync(tunnel.Port);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error restarting tunnel: {ex.Message}");
             tunnel.Status = TunnelStatus.Error;
             tunnel.LastError = ex.Message;
         }
@@ -186,14 +421,26 @@ public class TunnelViewModel : INotifyPropertyChanged
         {
             tunnel.Status = TunnelStatus.Stopping;
         }
-
+        
         await _tunnelService.StopAllTunnelsAsync();
-
+        
         Application.Current.Dispatcher.Invoke(() =>
         {
             Tunnels.Clear();
             OnPropertyChanged(nameof(ActiveTunnelCount));
         });
+        
+        // Clear saved tunnels from settings
+        _settingsService.SaveActiveTunnels(new List<CloudflareTunnel>());
+    }
+
+    /// <summary>
+    /// Saves active tunnels to settings
+    /// </summary>
+    private void SaveActiveTunnels()
+    {
+        var activeTunnels = Tunnels.Where(t => t.Status == TunnelStatus.Active || t.Status == TunnelStatus.Starting).ToList();
+        _settingsService.SaveActiveTunnels(activeTunnels);
     }
 
     /// <summary>
@@ -204,7 +451,7 @@ public class TunnelViewModel : INotifyPropertyChanged
         try
         {
             Clipboard.SetText(url);
-            _notificationService.Notify("Copied", "Tunnel URL copied to clipboard");
+            _notificationService.Notify("已复制", "隧道 URL 已复制到剪贴板");
         }
         catch (Exception ex)
         {
@@ -228,8 +475,8 @@ public class TunnelViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             MessageBox.Show(
-                $"Failed to open URL:\n{ex.Message}",
-                "Error",
+                $"无法打开 URL：\n{ex.Message}",
+                "错误",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
@@ -238,9 +485,22 @@ public class TunnelViewModel : INotifyPropertyChanged
     /// <summary>
     /// Re-checks cloudflared installation status
     /// </summary>
-    public void RecheckInstallation()
+    public async Task RecheckInstallationAsync()
     {
+        IsRefreshing = true;
+        OnPropertyChanged(nameof(IsRefreshing));
+        await Task.Delay(500); // Longer delay to show loading state
         IsCloudflaredInstalled = _tunnelService.IsCloudflaredInstalled;
+        IsRefreshing = false;
+        OnPropertyChanged(nameof(IsRefreshing));
+    }
+
+    /// <summary>
+    /// Re-checks cloudflared installation status (legacy method for compatibility)
+    /// </summary>
+    public async void RecheckInstallation()
+    {
+        await RecheckInstallationAsync();
     }
 
     /// <summary>

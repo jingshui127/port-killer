@@ -104,7 +104,7 @@ public class PortInfo : INotifyPropertyChanged
     {
         Port = port,
         Pid = 0,
-        ProcessName = "Not running",
+        ProcessName = "未运行",
         Address = "-",
         User = "-",
         Command = string.Empty,

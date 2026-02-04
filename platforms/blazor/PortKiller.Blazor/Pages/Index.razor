@@ -1,0 +1,2231 @@
+@page "/"
+@using PortKiller.Blazor.Services
+@using PortKiller.Blazor.Models
+@using Microsoft.Extensions.Logging
+@inject PortScannerService PortScanner
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@inject ThemeService ThemeService
+@inject ILogger<Index> Logger
+
+<PageTitle>PortManager</PageTitle>
+
+<div class="container @ThemeService.CurrentTheme">
+    <header class="header">
+        <h1>PortManager</h1>
+        <p class="subtitle">端口管理器</p>
+        <div class="header-actions">
+            <button class="about-btn" @onclick="@GoToAbout" title="关于">
+                <span>ℹ</span>
+            </button>
+            <button class="theme-toggle" @onclick="@ToggleTheme" title="切换主题">
+                <span>@(ThemeService.IsDarkTheme ? "☀" : "🌙")</span>
+            </button>
+        </div>
+    </header>
+
+    @if (_showNotification)
+    {
+        <div class="notification @_notificationType">
+            <span class="notification-icon">@_notificationIcon</span>
+            <span class="notification-message">@_notificationMessage</span>
+            <button class="notification-close" @onclick="@HideNotification">✕</button>
+        </div>
+    }
+
+    <div class="tabs">
+        <button class="tab @(_activeTab == "ports" ? "active" : "")" @onclick="@(() => SetActiveTab("ports"))">
+            <span class="tab-icon">🔌</span> 端口
+        </button>
+        <button class="tab @(_activeTab == "tunnels" ? "active" : "")" @onclick="@(() => SetActiveTab("tunnels"))">
+            <span class="tab-icon">🌐</span> 隧道
+        </button>
+    </div>
+
+    @if (_activeTab == "ports")
+    {
+        <div class="actions">
+            <button class="btn btn-primary" @onclick="@RefreshPorts">
+                <span class="icon">↻</span>
+                <text>刷新</text>
+            </button>
+        </div>
+
+        <div class="filter-search-container">
+            <div class="filter-buttons">
+                <button class="filter-btn @((!_showFavoritesOnly && !_showWatchedOnly) ? "active" : "")" @onclick="@(() => ToggleFilter("all"))">
+                    <span class="icon">📋</span>
+                    <text>全部</text>
+                </button>
+                <button class="filter-btn @(_showFavoritesOnly ? "active" : "")" @onclick="@(() => ToggleFilter("favorites"))">
+                    <span class="icon">★</span>
+                    <text>收藏</text>
+                </button>
+                <button class="filter-btn @(_showWatchedOnly ? "active" : "")" @onclick="@(() => ToggleFilter("watched"))">
+                    <span class="icon">👁</span>
+                    <text>监控</text>
+                </button>
+            </div>
+
+            <div class="search-box">
+                <input type="text" @bind="_searchText" placeholder="搜索端口、进程名或地址..." @oninput="OnSearchInput" />
+                <span class="search-icon">🔍</span>
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>正在扫描端口...</p>
+            </div>
+        }
+        else if (_filteredPorts.Count == 0)
+        {
+            <div class="empty">
+                <div class="empty-icon">☁</div>
+                <h2>无活动端口</h2>
+                <p>点击"刷新"按钮开始扫描</p>
+            </div>
+        }
+        else
+        {
+            <div class="port-list">
+                @foreach (var port in _filteredPorts)
+                {
+                    <div class="port-card @(port.IsActive ? "active" : "")">
+                        <div class="port-info">
+                            <div class="port-header">
+                                <div class="port-number">
+                                    <span class="label">端口</span>
+                                    <span class="value">@port.Port</span>
+                                </div>
+                                <div class="port-pid" title="PID: @port.Pid">
+                                    <span class="icon">🔢</span>
+                                    <span class="text">@port.Pid</span>
+                                </div>
+                            </div>
+                            <div class="port-details">
+                                <div class="detail-row">
+                                    <div class="detail" title="@port.ProcessName">
+                                        <span class="icon">⚙</span>
+                                        <span class="text text-truncate">@port.ProcessName</span>
+                                    </div>
+                                    <div class="detail" title="@port.Address">
+                                        <span class="icon">📍</span>
+                                        <span class="text text-truncate">@port.Address</span>
+                                    </div>
+                                </div>
+                                <div class="detail-row">
+                                    <div class="detail" title="@port.Command">
+                                        <span class="icon">�</span>
+                                        <span class="text text-truncate">@port.Command</span>
+                                    </div>
+                                    <div class="detail" title="@port.User">
+                                        <span class="icon">�</span>
+                                        <span class="text text-truncate">@port.User</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="port-actions">
+                            <button class="btn-icon @(port.IsFavorite ? "favorite" : "")" @onclick="@(() => ToggleFavorite(port.Port))" title="收藏">
+                                <span>@(port.IsFavorite ? "★" : "☆")</span>
+                            </button>
+                            <button class="btn-icon @(port.IsWatched ? "watched" : "")" @onclick="@(() => ToggleWatch(port.Port))" title="监控">
+                                <span>@(port.IsWatched ? "👁" : "👁")</span>
+                            </button>
+                            <button class="btn-icon btn-tunnel" @onclick="@(() => CreateTunnelForPort(port.Port))" title="创建隧道">
+                                <span>🌐</span>
+                            </button>
+                            <button class="btn-icon btn-info" @onclick="@(() => ShowPortDetails(port))" title="查看详情">
+                                <span>ℹ</span>
+                            </button>
+                            <button class="btn-icon btn-danger" @onclick="@(() => KillPort(port.Port))" title="终止">
+                                <span>✕</span>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    else if (_activeTab == "tunnels")
+    {
+        <div class="tunnel-section">
+            <div class="tunnel-header">
+                <div class="cloudflared-status">
+                    <span class="status-label">Cloudflared:</span>
+                    @if (_cloudflaredStatus == null)
+                    {
+                        <span class="status-checking">检查中...</span>
+                    }
+                    else if (_cloudflaredStatus.IsInstalled)
+                    {
+                        <span class="status-success">已安装 (@_cloudflaredStatus.Version)</span>
+                    }
+                    else
+                    {
+                        <span class="status-error">未安装</span>
+                    }
+                </div>
+                <div class="tunnel-actions">
+                    <button class="btn btn-primary" @onclick="@RefreshTunnels">
+                        <span class="icon">↻</span>
+                        <text>刷新</text>
+                    </button>
+                    @if (_tunnels.Count > 0)
+                    {
+                        <button class="btn btn-danger" @onclick="@StopAllTunnels">
+                            <span class="icon">🗑</span>
+                            <text>全部删除</text>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="tunnel-info-box">
+                <div class="info-box-icon">💡</div>
+                <div class="info-box-content">
+                    <p class="info-box-title">一键发布至公网</p>
+                    <p class="info-box-text">鼠标一点，即可将内网站点发布至公网，方便给客户演示、远程调试和协同开发</p>
+                </div>
+            </div>
+
+            @if (_tunnels.Count == 0)
+            {
+                <div class="empty">
+                    <div class="empty-icon">🌐</div>
+                    <h2>无活动隧道</h2>
+                    <p>创建一个隧道来暴露本地端口</p>
+                </div>
+            }
+            else
+            {
+                <div class="tunnel-list">
+                    @foreach (var tunnel in _tunnels)
+                    {
+                        <div class="tunnel-card @(tunnel.IsActive ? "active" : "")">
+                            <div class="tunnel-info">
+                                <div class="tunnel-header-row">
+                                    <div class="tunnel-port">
+                                        <span class="label">端口</span>
+                                        <span class="value">@tunnel.Port</span>
+                                    </div>
+                                    <div class="tunnel-status @(tunnel.IsActive ? "status-active" : "status-inactive")">
+                                        @tunnel.Status
+                                    </div>
+                                </div>
+                                <div class="tunnel-url">
+                                    <span class="label">URL:</span>
+                                    <a href="@tunnel.TunnelUrl" target="_blank" class="url-link">@tunnel.TunnelUrl</a>
+                                    <button class="copy-btn" @onclick="@(() => CopyToClipboard(tunnel.TunnelUrl))" title="复制">
+                                        📋
+                                    </button>
+                                </div>
+                                <div class="tunnel-details">
+                                    <div class="detail">
+                                        <span class="icon">⏱</span>
+                                        <span class="text">运行时间: @tunnel.Uptime</span>
+                                    </div>
+                                    <div class="detail">
+                                        <span class="icon">🚀</span>
+                                        <span class="text">PID: @tunnel.ProcessId</span>
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(tunnel.LastError))
+                                {
+                                    <div class="tunnel-error">
+                                        <span class="error-icon">⚠</span>
+                                        <span class="error-text">@tunnel.LastError</span>
+                                    </div>
+                                }
+                            </div>
+                            <div class="tunnel-actions">
+                                <button class="btn-icon btn-warning" @onclick="@(() => RestartTunnel(tunnel.Port))" title="重新创建隧道">
+                                    <span>🔄</span>
+                                </button>
+                                <button class="btn-icon btn-danger" @onclick="@(() => StopTunnel(tunnel.Port))" title="停止隧道">
+                                    <span>✕</span>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="create-tunnel">
+                <h3>创建新隧道</h3>
+                <div class="tunnel-form">
+                    <div class="form-group">
+                        <label>端口</label>
+                        <input type="number" @bind="_newTunnelPort" placeholder="输入端口号" />
+                    </div>
+                    <div class="form-group">
+                        <label>隧道名称 (可选)</label>
+                        <input type="text" @bind="_newTunnelName" placeholder="输入隧道名称" />
+                    </div>
+                    <button class="btn btn-success" @onclick="@CreateTunnel" disabled="@_isCreatingTunnel">
+                        @if (_isCreatingTunnel)
+                        {
+                            <span class="icon">⏳</span>
+                            <text>创建中...</text>
+                        }
+                        else
+                        {
+                            <span class="icon">➕</span>
+                            <text>创建隧道</text>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (_showPortDetailsModal && _selectedPort != null)
+{
+    <div class="modal-overlay" @onclick="ClosePortDetailsModal">
+        <div class="modal-content" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>端口详情</h2>
+                <button class="modal-close" @onclick="ClosePortDetailsModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row">
+                    <span class="detail-label">端口:</span>
+                    <span class="detail-value">@_selectedPort.Port</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">进程名:</span>
+                    <span class="detail-value">@_selectedPort.ProcessName</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">地址:</span>
+                    <span class="detail-value">@_selectedPort.Address</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">用户:</span>
+                    <span class="detail-value">@_selectedPort.User</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">PID:</span>
+                    <span class="detail-value">@_selectedPort.Pid</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">命令:</span>
+                    <span class="detail-value detail-value-full">@_selectedPort.Command</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">状态:</span>
+                    <span class="detail-value @(_selectedPort.IsActive ? "status-active" : "status-inactive")">@(_selectedPort.IsActive ? "活动" : "非活动")</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">收藏:</span>
+                    <span class="detail-value">@(_selectedPort.IsFavorite ? "是" : "否")</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">监控:</span>
+                    <span class="detail-value">@(_selectedPort.IsWatched ? "是" : "否")</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="@(() => { ClosePortDetailsModal(); _ = CreateTunnelForPort(_selectedPort.Port); })">
+                    <span class="icon">🌐</span> 创建隧道
+                </button>
+                <button class="btn btn-danger" @onclick="@(() => { ClosePortDetailsModal(); KillPort(_selectedPort.Port); })">
+                    <span class="icon">✕</span> 终止进程
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #1e1e1e;
+        color: #e0e0e0;
+    }
+    
+    .header {
+        text-align: center;
+        margin-bottom: 30px;
+        position: relative;
+    }
+    
+    .header h1 {
+        font-size: 48px;
+        margin: 0 0 10px 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .subtitle {
+        font-size: 16px;
+        color: #a0a0a0;
+        margin: 0;
+    }
+    
+    .header-actions {
+        position: absolute;
+        top: 0;
+        right: 0;
+        display: flex;
+        gap: 8px;
+    }
+    
+    .about-btn {
+        background: #252525;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 20px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .about-btn:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+        transform: scale(1.05);
+    }
+    
+    .theme-toggle {
+        background: #252525;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 20px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .theme-toggle:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+        transform: scale(1.05);
+    }
+    
+    .tabs {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 30px;
+    }
+    
+    .tab {
+        padding: 12px 32px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: #2a2a2a;
+        color: #b0b0b0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .tab:hover {
+        background: #3a3a3a;
+    }
+    
+    .tab.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .tab-icon {
+        font-size: 18px;
+    }
+    
+    .actions {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+    }
+    
+    .btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .filter-search-container {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    
+    .filter-buttons {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    
+    .filter-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background: #252525;
+        border: 1px solid #353535;
+        border-radius: 6px;
+        color: #a0a0a0;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 14px;
+    }
+    
+    .filter-btn:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+        color: #e0e0e0;
+    }
+    
+    .filter-btn.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .btn-success {
+        background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+        color: white;
+    }
+    
+    .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 60px 20px;
+    }
+    
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #667eea;
+        border-top: 4px solid transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+    }
+    
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .empty {
+        text-align: center;
+        padding: 80px 20px;
+    }
+    
+    .empty-icon {
+        font-size: 80px;
+        margin-bottom: 20px;
+        opacity: 0.3;
+    }
+    
+    .empty h2 {
+        font-size: 24px;
+        margin: 0 0 10px 0;
+        color: #a0a0a0;
+    }
+    
+    .empty p {
+        color: #808080;
+        margin: 0;
+    }
+    
+    .port-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 20px;
+    }
+    
+    .port-card {
+        background: #2a2a2a;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #353535;
+        transition: all 0.3s ease;
+    }
+    
+    .port-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        border-color: #667eea;
+    }
+    
+    .port-card.active {
+        border-left: 4px solid #2ecc71;
+    }
+    
+    .port-info {
+        margin-bottom: 16px;
+    }
+    
+    .port-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .port-number {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+    }
+    
+    .port-number .label {
+        font-size: 12px;
+        color: #a0a0a0;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .port-number .value {
+        font-size: 32px;
+        font-weight: 700;
+        color: #667eea;
+    }
+    
+    .port-pid {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: #808080;
+        background: #2a2a2a;
+        padding: 4px 10px;
+        border-radius: 4px;
+    }
+    
+    .port-pid .icon {
+        font-size: 14px;
+    }
+    
+    .port-pid .text {
+        font-weight: 500;
+    }
+    
+    .port-details {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    .detail-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .detail {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #b0b0b0;
+    }
+    
+    .detail .icon {
+        font-size: 14px;
+    }
+    
+    .detail .text {
+        color: #e0e0e0;
+    }
+    
+    .text-truncate {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 200px;
+    }
+    
+    .port-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+    
+    .btn-icon {
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 8px;
+        font-size: 18px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #3a3a3a;
+        color: #b0b0b0;
+    }
+    
+    .btn-icon:hover {
+        transform: scale(1.1);
+    }
+    
+    .btn-icon.favorite {
+        background: #f39c12;
+        color: white;
+    }
+    
+    .btn-icon.watched {
+        background: #3498db;
+        color: white;
+    }
+    
+    .btn-icon.btn-tunnel {
+        background: #9b59b6;
+        color: white;
+    }
+    
+    .btn-icon.btn-tunnel:hover {
+        background: #8e44ad;
+    }
+    
+    .btn-icon.btn-info {
+        background: #1abc9c;
+        color: white;
+    }
+    
+    .btn-icon.btn-info:hover {
+        background: #16a085;
+    }
+    
+    .btn-icon.btn-danger {
+        background: #e74c3c;
+        color: white;
+    }
+    
+    .btn-icon.btn-danger:hover {
+        background: #c0392b;
+    }
+    
+    .tunnel-section {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+    }
+    
+    .tunnel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: #2a2a2a;
+        border-radius: 8px;
+    }
+    
+    .tunnel-actions {
+        display: flex;
+        gap: 12px;
+    }
+    
+    .cloudflared-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .status-label {
+        font-size: 14px;
+        color: #a0a0a0;
+    }
+    
+    .status-checking {
+        color: #f39c12;
+        font-size: 14px;
+    }
+    
+    .status-success {
+        color: #2ecc71;
+        font-size: 14px;
+        font-weight: 600;
+    }
+    
+    .status-error {
+        color: #e74c3c;
+        font-size: 14px;
+    }
+    
+    .create-tunnel {
+        background: #2a2a2a;
+        border-radius: 12px;
+        padding: 24px;
+    }
+    
+    .create-tunnel h3 {
+        margin: 0 0 20px 0;
+        font-size: 18px;
+        color: #e0e0e0;
+    }
+    
+    .tunnel-info-box {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    .info-box-icon {
+        font-size: 32px;
+        flex-shrink: 0;
+    }
+    
+    .info-box-content {
+        flex: 1;
+    }
+    
+    .info-box-title {
+        margin: 0 0 8px 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: white;
+    }
+    
+    .info-box-text {
+        margin: 0;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.9);
+        line-height: 1.6;
+    }
+    
+    .tunnel-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .form-group label {
+        font-size: 14px;
+        color: #b0b0b0;
+    }
+    
+    .form-group input {
+        padding: 12px 16px;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        background: #1e1e1e;
+        color: #e0e0e0;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    
+    .form-group input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .tunnel-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        gap: 20px;
+    }
+    
+    .tunnel-card {
+        background: #2a2a2a;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #353535;
+        transition: all 0.3s ease;
+    }
+    
+    .tunnel-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        border-color: #667eea;
+    }
+    
+    .tunnel-card.active {
+        border-left: 4px solid #2ecc71;
+    }
+    
+    .tunnel-info {
+        margin-bottom: 16px;
+    }
+    
+    .tunnel-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    
+    .tunnel-port {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+    }
+    
+    .tunnel-port .label {
+        font-size: 12px;
+        color: #a0a0a0;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .tunnel-port .value {
+        font-size: 32px;
+        font-weight: 700;
+        color: #667eea;
+    }
+    
+    .tunnel-status {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    .tunnel-status.status-active {
+        background: rgba(46, 204, 113, 0.2);
+        color: #2ecc71;
+    }
+    
+    .tunnel-status.status-inactive {
+        background: rgba(231, 76, 60, 0.2);
+        color: #e74c3c;
+    }
+    
+    .tunnel-url {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: #1e1e1e;
+        border-radius: 6px;
+        margin-bottom: 12px;
+    }
+    
+    .tunnel-url .label {
+        font-size: 12px;
+        color: #a0a0a0;
+    }
+    
+    .url-link {
+        color: #667eea;
+        text-decoration: none;
+        font-size: 14px;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .url-link:hover {
+        text-decoration: underline;
+    }
+    
+    .copy-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .copy-btn:hover {
+        background: #3a3a3a;
+    }
+    
+    .tunnel-details {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .tunnel-error {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: rgba(231, 76, 60, 0.1);
+        border-radius: 6px;
+    }
+    
+    .tunnel-error .error-icon {
+        font-size: 16px;
+    }
+    
+    .tunnel-error .error-text {
+        font-size: 14px;
+        color: #e74c3c;
+    }
+    
+    .tunnel-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+    
+    .search-box {
+        position: relative;
+        flex: 1;
+        min-width: 300px;
+    }
+    
+    .search-box input {
+        width: 100%;
+        padding: 12px 48px 12px 16px;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        background: #1e1e1e;
+        color: #e0e0e0;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    
+    .search-box input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .search-box input::placeholder {
+        color: #606060;
+    }
+    
+    .search-icon {
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 18px;
+        color: #a0a0a0;
+        pointer-events: none;
+    }
+    
+    .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        min-width: 300px;
+        max-width: 400px;
+        padding: 16px 20px;
+        border-radius: 8px;
+        background: #2a2a2a;
+        border: 1px solid #353535;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+    }
+    
+    @@keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    .notification.success {
+        border-left: 4px solid #2ecc71;
+    }
+    
+    .notification.error {
+        border-left: 4px solid #e74c3c;
+    }
+    
+    .notification.warning {
+        border-left: 4px solid #f39c12;
+    }
+    
+    .notification.info {
+        border-left: 4px solid #3498db;
+    }
+    
+    .notification-icon {
+        font-size: 20px;
+        font-weight: bold;
+    }
+    
+    .notification.success .notification-icon {
+        color: #2ecc71;
+    }
+    
+    .notification.error .notification-icon {
+        color: #e74c3c;
+    }
+    
+    .notification.warning .notification-icon {
+        color: #f39c12;
+    }
+    
+    .notification.info .notification-icon {
+        color: #3498db;
+    }
+    
+    .notification-message {
+        font-size: 14px;
+        color: #e0e0e0;
+    }
+    
+    .notification-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        color: #a0a0a0;
+        padding: 4px;
+        margin-left: auto;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .notification-close:hover {
+        background: #3a3a3a;
+        color: #e0e0e0;
+    }
+    
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+    
+    .modal-content {
+        background: #2a2a2a;
+        border-radius: 12px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        animation: slideUp 0.3s ease;
+    }
+    
+    @@keyframes slideUp {
+        from {
+            transform: translateY(50px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+    
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid #353535;
+    }
+    
+    .modal-header h2 {
+        margin: 0;
+        font-size: 20px;
+        color: #e0e0e0;
+    }
+    
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        color: #a0a0a0;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .modal-close:hover {
+        background: #3a3a3a;
+        color: #e0e0e0;
+    }
+    
+    .modal-body {
+        padding: 20px;
+    }
+    
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid #353535;
+    }
+    
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+    
+    .detail-label {
+        font-size: 14px;
+        color: #a0a0a0;
+        font-weight: 500;
+    }
+    
+    .detail-value {
+        font-size: 14px;
+        color: #e0e0e0;
+        font-weight: 600;
+    }
+    
+    .detail-value-full {
+        word-break: break-all;
+        max-width: 300px;
+        text-align: right;
+    }
+    
+    .detail-value.status-active {
+        color: #2ecc71;
+    }
+    
+    .detail-value.status-inactive {
+        color: #e74c3c;
+    }
+    
+    .modal-footer {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        padding: 20px;
+        border-top: 1px solid #353535;
+    }
+    
+    .container.light {
+        background: #f5f5f5;
+        color: #333333;
+    }
+    
+    .container.light .subtitle {
+        color: #666666;
+    }
+    
+    .container.light .theme-toggle {
+        background: #ffffff;
+        border-color: #e0e0e0;
+    }
+    
+    .container.light .theme-toggle:hover {
+        background: #f0f0f0;
+        border-color: #cccccc;
+    }
+    
+    .container.light .about-btn {
+        background: #ffffff;
+        border-color: #e0e0e0;
+    }
+    
+    .container.light .about-btn:hover {
+        background: #f0f0f0;
+        border-color: #cccccc;
+    }
+    
+    .container.light .tab {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        color: #666666;
+    }
+    
+    .container.light .tab:hover {
+        background: #f0f0f0;
+        border-color: #cccccc;
+        color: #333333;
+    }
+    
+    .container.light .tab.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+    
+    .container.light .filter-btn {
+        background: #ffffff;
+        border-color: #e0e0e0;
+        color: #666666;
+    }
+    
+    .container.light .filter-btn:hover {
+        background: #f0f0f0;
+        border-color: #cccccc;
+        color: #333333;
+    }
+    
+    .container.light .filter-btn.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+    
+    .container.light .search-box input {
+        background: #ffffff;
+        border-color: #e0e0e0;
+        color: #333333;
+    }
+    
+    .container.light .search-box input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .container.light .search-box input::placeholder {
+        color: #999999;
+    }
+    
+    .container.light .search-icon {
+        color: #999999;
+    }
+    
+    .container.light .port-card {
+        background: #ffffff;
+        border-color: #e0e0e0;
+    }
+    
+    .container.light .port-card:hover {
+        border-color: #667eea;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+    
+    .container.light .port-card.active {
+        border-color: #667eea;
+        background: #f8f9ff;
+    }
+    
+    .container.light .port-number .label {
+        color: #999999;
+    }
+    
+    .container.light .port-pid .icon {
+        color: #999999;
+    }
+    
+    .container.light .port-pid {
+        background: #f5f5f5;
+        color: #666666;
+    }
+    
+    .container.light .port-pid .text {
+        color: #666666;
+    }
+    
+    .container.light .detail .icon {
+        color: #999999;
+    }
+    
+    .container.light .detail .text {
+        color: #666666;
+    }
+    
+    .container.light .btn-icon {
+        background: #f5f5f5;
+        color: #666666;
+    }
+    
+    .container.light .btn-icon:hover {
+        background: #e0e0e0;
+        color: #333333;
+    }
+    
+    .container.light .btn-icon.favorite {
+        color: #ffd700;
+    }
+    
+    .container.light .btn-icon.watched {
+        color: #667eea;
+    }
+    
+    .container.light .btn-icon.btn-tunnel:hover {
+        background: #667eea;
+        color: white;
+    }
+    
+    .container.light .btn-icon.btn-danger:hover {
+        background: #e74c3c;
+        color: white;
+    }
+    
+    .container.light .tunnel-card {
+        background: #ffffff;
+        border-color: #e0e0e0;
+    }
+    
+    .container.light .tunnel-card:hover {
+        border-color: #667eea;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+    
+    .container.light .tunnel-url .label {
+        color: #999999;
+    }
+    
+    .container.light .tunnel-details .detail {
+        color: #666666;
+    }
+    
+    .container.light .tunnel-error {
+        background: #fee;
+        color: #c33;
+    }
+    
+    .container.light .create-tunnel-card {
+        background: #f8f9ff;
+        border-color: #667eea;
+    }
+    
+    .container.light .create-tunnel-card:hover {
+        border-color: #5568d3;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+    
+    .container.light .create-tunnel-card .icon {
+        color: #667eea;
+    }
+    
+    .container.light .create-tunnel-card .text {
+        color: #666666;
+    }
+    
+    .container.light .create-tunnel-card .subtext {
+        color: #999999;
+    }
+    
+    .container.light .modal-content {
+        background: #ffffff;
+        border-color: #e0e0e0;
+    }
+    
+    .container.light .modal-header {
+        border-color: #e0e0e0;
+    }
+    
+    .container.light .modal-header h2 {
+        color: #333333;
+    }
+    
+    .container.light .modal-close {
+        color: #999999;
+    }
+    
+    .container.light .modal-close:hover {
+        background: #f0f0f0;
+        color: #333333;
+    }
+    
+    .container.light .detail-row {
+        border-color: #e0e0e0;
+    }
+    
+    .container.light .detail-label {
+        color: #999999;
+    }
+    
+    .container.light .detail-value {
+        color: #333333;
+    }
+    
+    .container.light .modal-footer {
+        border-color: #e0e0e0;
+    }
+    
+    .container.light .tunnel-header {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+    }
+    
+    .container.light .status-label {
+        color: #666666;
+    }
+    
+    .container.light .create-tunnel {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+    }
+    
+    .container.light .create-tunnel h3 {
+        color: #333333;
+    }
+    
+    .container.light .tunnel-form .form-group label {
+        color: #666666;
+    }
+    
+    .container.light .tunnel-form .form-group input {
+        background: #f5f5f5;
+        border-color: #e0e0e0;
+        color: #333333;
+    }
+    
+    .container.light .tunnel-form .form-group input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .container.light .tunnel-form .form-group input::placeholder {
+        color: #999999;
+    }
+    
+    .container.light .empty h2 {
+        color: #333333;
+    }
+    
+    .container.light .empty p {
+        color: #666666;
+    }
+    
+    .container.light .tunnel-port .label {
+        color: #999999;
+    }
+    
+    .container.light .tunnel-port .value {
+        color: #333333;
+    }
+    
+    .container.light .tunnel-status.status-active {
+        background: #e8f5e9;
+        color: #2ecc71;
+    }
+    
+    .container.light .tunnel-status.status-inactive {
+        background: #fff3e0;
+        color: #f39c12;
+    }
+    
+    .container.light .url-link {
+        color: #667eea;
+    }
+    
+    .container.light .copy-btn {
+        color: #666666;
+    }
+    
+    .container.light .copy-btn:hover {
+        background: #f0f0f0;
+        color: #333333;
+    }
+    
+    .container.light .tunnel-details .detail .icon {
+        color: #999999;
+    }
+    
+    .container.light .tunnel-details .detail .text {
+        color: #666666;
+    }
+    
+    .container.light .tunnel-error .error-icon {
+        color: #e74c3c;
+    }
+    
+    .container.light .tunnel-error .error-text {
+        color: #c0392b;
+    }
+    
+    .container.light .btn-icon.btn-warning:hover {
+        background: #f39c12;
+        color: white;
+    }
+    
+    .container.light .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .container.light .btn-success {
+        background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+        color: white;
+    }
+    
+    .container.light .btn-danger {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        color: white;
+    }
+    
+    .container.light .btn-warning {
+        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+    }
+    
+    .container.light .tunnel-info-box {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+    
+    .container.light .loading p {
+        color: #666666;
+    }
+    
+    .container.light .empty h2 {
+        color: #333333;
+    }
+    
+    .container.light .empty p {
+        color: #666666;
+    }
+    
+    .container.light .notification.success {
+        background: #d4edda;
+        border-color: #c3e6cb;
+    }
+    
+    .container.light .notification.success .notification-icon {
+        color: #155724;
+    }
+    
+    .container.light .notification.success .notification-message {
+        color: #155724;
+    }
+    
+    .container.light .notification.error {
+        background: #f8d7da;
+        border-color: #f5c6cb;
+    }
+    
+    .container.light .notification.error .notification-icon {
+        color: #721c24;
+    }
+    
+    .container.light .notification.error .notification-message {
+        color: #721c24;
+    }
+    
+    .container.light .notification.warning {
+        background: #fff3cd;
+        border-color: #ffeaa7;
+    }
+    
+    .container.light .notification.warning .notification-icon {
+        color: #856404;
+    }
+    
+    .container.light .notification.warning .notification-message {
+        color: #856404;
+    }
+    
+    .container.light .notification.info {
+        background: #d1ecf1;
+        border-color: #bee5eb;
+    }
+    
+    .container.light .notification.info .notification-icon {
+        color: #0c5460;
+    }
+    
+    .container.light .notification.info .notification-message {
+        color: #0c5460;
+    }
+    
+    .container.light .notification-close {
+        color: #666666;
+    }
+    
+    .container.light .notification-close:hover {
+        background: #e0e0e0;
+        color: #333333;
+    }
+    
+    .container.light .spinner {
+        border: 4px solid #667eea;
+        border-top: 4px solid transparent;
+    }
+    
+    .container.light .loading p {
+        color: #666666;
+    }
+</style>
+
+@code {
+    private List<PortInfo> _ports = new();
+    private List<CloudflareTunnel> _tunnels = new();
+    private bool _isLoading = false;
+    private string _activeTab = "ports";
+    private CloudflaredStatus? _cloudflaredStatus;
+    private int _newTunnelPort;
+    private string _newTunnelName = string.Empty;
+    private bool _isCreatingTunnel = false;
+    private bool _showNotification = false;
+    private string _notificationMessage = string.Empty;
+    private string _notificationType = string.Empty;
+    private string _notificationIcon = string.Empty;
+    private string _searchText = string.Empty;
+    private List<PortInfo> _filteredPorts = new();
+    private PortInfo? _selectedPort;
+    private bool _showPortDetailsModal = false;
+    private System.Threading.Timer? _tunnelTimer;
+    private List<Notification> _notifications = new();
+    private bool _showFavoritesOnly = false;
+    private bool _showWatchedOnly = false;
+
+    [Inject]
+    private IJSRuntime JavaScriptRuntime { get; set; } = null!;
+
+    [Inject]
+    private TunnelService TunnelService { get; set; } = null!;
+
+    [Inject]
+    private NotificationService NotificationService { get; set; } = null!;
+
+    private readonly Dictionary<int, bool> _previousPortStates = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Http.BaseAddress = new Uri(Navigation.BaseUri);
+        await TunnelService.InitializeAsync();
+        await LoadPortsAsync();
+        await CheckCloudflaredStatus();
+        await LoadTunnelsAsync();
+        
+        _tunnelTimer = new System.Threading.Timer(async _ => await UpdateTunnelStatus(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+
+        NotificationService.OnNotificationAdded += OnNotificationAdded;
+    }
+
+    public void Dispose()
+    {
+        _tunnelTimer?.Dispose();
+        NotificationService.OnNotificationAdded -= OnNotificationAdded;
+    }
+
+    private void OnNotificationAdded(Notification notification)
+    {
+        InvokeAsync(() =>
+        {
+            _notifications.Add(notification);
+            if (_notifications.Count > 10)
+            {
+                _notifications.RemoveAt(0);
+            }
+
+            _notificationMessage = notification.Message;
+            _notificationType = notification.Type;
+            _notificationIcon = notification.Icon;
+            _showNotification = true;
+            StateHasChanged();
+
+            Task.Delay(3000).ContinueWith(_ =>
+            {
+                InvokeAsync(() =>
+                {
+                    _showNotification = false;
+                    StateHasChanged();
+                });
+            });
+        });
+    }
+
+    private void HideNotification()
+    {
+        _showNotification = false;
+        StateHasChanged();
+    }
+
+    private void ShowNotification(string message, string type = "success")
+    {
+        _notificationMessage = message;
+        _notificationType = type;
+        _notificationIcon = type switch
+        {
+            "success" => "✓",
+            "error" => "✕",
+            "warning" => "⚠",
+            "info" => "ℹ",
+            _ => "ℹ"
+        };
+        _showNotification = true;
+        StateHasChanged();
+        
+        Task.Delay(3000).ContinueWith(_ =>
+        {
+            _showNotification = false;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _searchText = e.Value?.ToString() ?? string.Empty;
+        FilterPorts();
+    }
+
+    private void FilterPorts()
+    {
+        var result = _ports;
+
+        if (_showFavoritesOnly)
+        {
+            result = result.Where(p => p.IsFavorite).ToList();
+        }
+
+        if (_showWatchedOnly)
+        {
+            result = result.Where(p => p.IsWatched).ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(_searchText))
+        {
+            var searchLower = _searchText.ToLower();
+            result = result
+                .Where(p => 
+                    p.Port.ToString().Contains(searchLower) ||
+                    p.ProcessName.ToLower().Contains(searchLower) ||
+                    p.Address.ToLower().Contains(searchLower) ||
+                    p.Command.ToLower().Contains(searchLower))
+                .ToList();
+        }
+
+        _filteredPorts = result;
+        StateHasChanged();
+    }
+
+    private void ToggleFilter(string filter)
+    {
+        if (filter == "all")
+        {
+            _showFavoritesOnly = false;
+            _showWatchedOnly = false;
+        }
+        else if (filter == "favorites")
+        {
+            _showFavoritesOnly = !_showFavoritesOnly;
+            if (_showFavoritesOnly) _showWatchedOnly = false;
+        }
+        else if (filter == "watched")
+        {
+            _showWatchedOnly = !_showWatchedOnly;
+            if (_showWatchedOnly) _showFavoritesOnly = false;
+        }
+
+        FilterPorts();
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        _activeTab = tab;
+        if (tab == "tunnels")
+        {
+            _ = LoadTunnelsAsync();
+        }
+    }
+
+    private void ToggleTheme()
+    {
+        ThemeService.ToggleTheme();
+    }
+
+    private void GoToAbout()
+    {
+        Navigation.NavigateTo("/about");
+    }
+
+    private async Task LoadPortsAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            await Task.Delay(500);
+            _ports = PortScanner.GetPorts();
+            _filteredPorts = _ports.ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading ports");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshPorts()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            await PortScanner.RefreshPortsAsync();
+            _ports = PortScanner.GetPorts();
+            _filteredPorts = _ports.ToList();
+            ShowNotification("端口列表已刷新", "success");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error refreshing ports");
+            ShowNotification("刷新端口失败: " + ex.Message, "error");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task KillPort(int port)
+    {
+        try
+        {
+            PortScanner.KillPort(port);
+            _ports = PortScanner.GetPorts();
+            ShowNotification($"端口 {port} 已终止", "success");
+        }
+        catch (Exception ex)
+        {
+            ShowNotification($"终止端口 {port} 失败: {ex.Message}", "error");
+        }
+        StateHasChanged();
+    }
+
+    private void ToggleFavorite(int port)
+    {
+        var portInfo = _ports.FirstOrDefault(p => p.Port == port);
+        if (portInfo == null) return;
+
+        var wasFavorite = portInfo.IsFavorite;
+        PortScanner.ToggleFavorite(port);
+        
+        if (wasFavorite)
+        {
+            ShowNotification($"端口 {port} 已从收藏移除", "info");
+        }
+        else
+        {
+            ShowNotification($"端口 {port} 已添加到收藏", "info");
+        }
+        
+        StateHasChanged();
+    }
+
+    private void ToggleWatch(int port)
+    {
+        var portInfo = _ports.FirstOrDefault(p => p.Port == port);
+        if (portInfo == null) return;
+
+        var wasWatched = portInfo.IsWatched;
+        PortScanner.ToggleWatch(port);
+        
+        if (wasWatched)
+        {
+            ShowNotification($"端口 {port} 已从监控移除", "info");
+        }
+        else
+        {
+            ShowNotification($"端口 {port} 已添加到监控", "info");
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task CheckCloudflaredStatus()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<CloudflaredStatus>("/api/ports/tunnels/cloudflared/status");
+            _cloudflaredStatus = response;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error checking cloudflared status");
+        }
+    }
+
+    private async Task LoadTunnelsAsync()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<CloudflareTunnel>>("/api/ports/tunnels");
+            if (response != null)
+            {
+                _tunnels = response;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading tunnels");
+        }
+    }
+
+    private async Task UpdateTunnelStatus()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<CloudflareTunnel>>("/api/ports/tunnels");
+            if (response != null)
+            {
+                _tunnels = response;
+                await InvokeAsync(StateHasChanged);
+            }
+
+            await InvokeAsync(CheckWatchedPorts);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating tunnel status");
+        }
+    }
+
+    private void CheckWatchedPorts()
+    {
+        var activePorts = _ports.Where(p => p.IsActive).Select(p => p.Port).ToHashSet();
+
+        foreach (var port in _ports)
+        {
+            var isActive = activePorts.Contains(port.Port);
+            var wasActive = _previousPortStates.ContainsKey(port.Port) && _previousPortStates[port.Port];
+
+            if (isActive && !wasActive)
+            {
+                NotificationService.NotifyPortStarted(port.Port, port.ProcessName);
+            }
+
+            if (!isActive && wasActive)
+            {
+                NotificationService.NotifyPortStopped(port.Port);
+            }
+
+            _previousPortStates[port.Port] = isActive;
+        }
+    }
+
+    private async Task RefreshTunnels()
+    {
+        await LoadTunnelsAsync();
+        StateHasChanged();
+        ShowNotification("隧道列表已刷新", "success");
+    }
+
+    private async Task CreateTunnel()
+    {
+        if (_newTunnelPort <= 0)
+        {
+            ShowNotification("请输入有效的端口号", "warning");
+            return;
+        }
+
+        _isCreatingTunnel = true;
+        StateHasChanged();
+
+        try
+        {
+            var port = _newTunnelPort;
+            var request = new { Port = _newTunnelPort, TunnelName = _newTunnelName };
+            var response = await Http.PostAsJsonAsync("/api/ports/tunnels/create", request);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                _newTunnelPort = 0;
+                _newTunnelName = string.Empty;
+                await LoadTunnelsAsync();
+                ShowNotification($"隧道已创建: 端口 {port}", "success");
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Logger.LogError("Error creating tunnel: {Error}", error);
+                ShowNotification($"创建隧道失败: {error}", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating tunnel");
+            ShowNotification($"创建隧道失败: {ex.Message}", "error");
+        }
+        finally
+        {
+            _isCreatingTunnel = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CreateTunnelForPort(int port)
+    {
+        _activeTab = "tunnels";
+        _newTunnelPort = port;
+        _newTunnelName = $"port-{port}";
+        StateHasChanged();
+        await CreateTunnel();
+    }
+
+    private void ShowPortDetails(PortInfo port)
+    {
+        _selectedPort = port;
+        _showPortDetailsModal = true;
+        StateHasChanged();
+    }
+
+    private void ClosePortDetailsModal()
+    {
+        _showPortDetailsModal = false;
+        _selectedPort = null;
+        StateHasChanged();
+    }
+
+    private async Task StopTunnel(int port)
+    {
+        try
+        {
+            var response = await Http.PostAsync($"/api/ports/tunnels/stop/{port}", null);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadTunnelsAsync();
+                ShowNotification($"隧道已停止: 端口 {port}", "success");
+            }
+            else
+            {
+                ShowNotification($"停止隧道失败: 端口 {port}", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error stopping tunnel");
+            ShowNotification($"停止隧道失败: {ex.Message}", "error");
+        }
+    }
+
+    private async Task RestartTunnel(int port)
+    {
+        try
+        {
+            var response = await Http.PostAsync($"/api/ports/tunnels/restart/{port}", null);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadTunnelsAsync();
+                ShowNotification($"隧道已重新创建: 端口 {port}", "success");
+            }
+            else
+            {
+                ShowNotification($"重新创建隧道失败: 端口 {port}", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error restarting tunnel");
+            ShowNotification($"重新创建隧道失败: {ex.Message}", "error");
+        }
+    }
+
+    private async Task StopAllTunnels()
+    {
+        try
+        {
+            var response = await Http.PostAsync("/api/ports/tunnels/stop-all", null);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadTunnelsAsync();
+                ShowNotification($"已停止所有隧道 ({_tunnels.Count} 个)", "success");
+            }
+            else
+            {
+                ShowNotification($"停止所有隧道失败", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error stopping all tunnels");
+            ShowNotification($"停止所有隧道失败: {ex.Message}", "error");
+        }
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        try
+        {
+            await JavaScriptRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+            ShowNotification("URL 已复制到剪贴板", "success");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error copying to clipboard");
+            ShowNotification("复制失败", "error");
+        }
+    }
+}
