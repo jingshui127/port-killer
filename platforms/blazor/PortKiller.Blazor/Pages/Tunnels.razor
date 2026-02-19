@@ -1,0 +1,1064 @@
+@page "/tunnels"
+@using PortKiller.Blazor.Services
+@using PortKiller.Blazor.Models
+@using Microsoft.Extensions.Logging
+@inject TunnelService TunnelService
+@inject NavigationManager Navigation
+@inject ThemeService ThemeService
+@inject ILogger<Tunnels> Logger
+@inject NotificationService NotificationService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>隧道管理</PageTitle>
+
+<div class="container @ThemeService.CurrentTheme">
+    <header class="header">
+        <h1>隧道管理</h1>
+        <p class="subtitle">管理Cloudflare隧道</p>
+        <div class="header-actions">
+            <button class="home-btn" @onclick="@GoToHome" title="返回主页">
+                <span>🏠</span>
+            </button>
+            <button class="theme-toggle" @onclick="@ToggleTheme" title="切换主题">
+                <span>@(ThemeService.IsDarkTheme ? "☀" : "🌙")</span>
+            </button>
+        </div>
+    </header>
+
+    @if (_showNotification)
+    {
+        <div class="notification @_notificationType">
+            <span class="notification-icon">@_notificationIcon</span>
+            <span class="notification-message">@_notificationMessage</span>
+            <button class="notification-close" @onclick="@HideNotification">✕</button>
+        </div>
+    }
+
+    <div class="tunnel-section">
+        <div class="tunnel-header">
+            <div class="cloudflared-status">
+                <span class="status-label">Cloudflared:</span>
+                @if (_cloudflaredStatus == null)
+                {
+                    <span class="status-checking">检查中...</span>
+                }
+                else if (_cloudflaredStatus.IsInstalled)
+                {
+                    <span class="status-success">已安装 (@_cloudflaredStatus.Version)</span>
+                    @if (_isUpdatingCloudflared && _updateProgress != null)
+                    {
+                        <div class="update-progress-container">
+                            <div class="update-progress-bar">
+                                <div class="update-progress-fill" style="width: @_updateProgress.Progress%"></div>
+                            </div>
+                            <span class="update-progress-text">@_updateProgress.Message</span>
+                        </div>
+                    }
+                    else if (_cloudflaredStatus.HasUpdate)
+                    {
+                        <span class="update-available">有新版本 @_cloudflaredStatus.LatestVersion</span>
+                        <button class="btn btn-small btn-update" @onclick="@UpdateCloudflared" disabled="@_isUpdatingCloudflared" title="升级Cloudflared到最新版本">
+                            <span class="icon">⬆</span>
+                            <text>升级</text>
+                        </button>
+                        <a href="https://github.com/cloudflare/cloudflared/releases/latest" target="_blank" class="btn btn-small btn-download" title="手动下载最新版本">
+                            <span class="icon">⬇</span>
+                            <text>下载</text>
+                        </a>
+                    }
+                }
+                else
+                {
+                    <span class="status-error">未安装</span>
+                }
+            </div>
+            <div class="tunnel-actions">
+                <button class="btn btn-primary" @onclick="@RefreshTunnels">
+                    <span class="icon">↻</span>
+                    <text>刷新</text>
+                </button>
+                @if (_tunnels.Count > 0)
+                {
+                    <button class="btn btn-danger" @onclick="@StopAllTunnels">
+                        <span class="icon">🗑</span>
+                        <text>全部删除</text>
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (_tunnels.Count == 0)
+        {
+            <div class="empty">
+                <div class="empty-icon">🌐</div>
+                <h2>无活动隧道</h2>
+                <p>创建一个隧道来暴露本地端口</p>
+            </div>
+        }
+        else
+        {
+            <div class="tunnel-list">
+                @foreach (var tunnel in _tunnels)
+                {
+                    <div class="tunnel-card @(tunnel.IsActive ? "active" : "")">
+                        <div class="tunnel-info">
+                            <div class="tunnel-header-row">
+                                <div class="tunnel-port">
+                                    <span class="label">端口</span>
+                                    <span class="value">@tunnel.Port</span>
+                                </div>
+                                <div class="tunnel-status @(tunnel.IsActive ? "status-active" : "status-inactive")" title="@(tunnel.IsActive ? "隧道正在运行中" : "隧道已停止或未启动")">
+                                    @tunnel.Status
+                                </div>
+                            </div>
+                            <div class="tunnel-url">
+                                <span class="label">URL:</span>
+                                <a href="@tunnel.TunnelUrl" target="_blank" class="url-link">@tunnel.TunnelUrl</a>
+                                <button class="copy-btn" @onclick="@(() => CopyToClipboard(tunnel.TunnelUrl))" title="复制">
+                                    📋
+                                </button>
+                            </div>
+                            <div class="tunnel-details">
+                                <div class="detail">
+                                    <span class="icon">⏱</span>
+                                    <span class="text">运行时间: @tunnel.Uptime</span>
+                                </div>
+                                <div class="detail">
+                                    <span class="icon">🚀</span>
+                                    <span class="text">PID: @tunnel.ProcessId</span>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(tunnel.LastError))
+                            {
+                                <div class="tunnel-error">
+                                    <span class="error-icon">⚠</span>
+                                    <span class="error-text">@tunnel.LastError</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="tunnel-actions">
+                            <button class="btn-icon btn-warning" @onclick="@(() => RestartTunnel(tunnel.Port))" title="重新创建隧道">
+                                <span>🔄</span>
+                            </button>
+                            <button class="btn-icon btn-danger" @onclick="@(() => StopTunnel(tunnel.Port))" title="停止隧道">
+                                <span>✕</span>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="create-tunnel">
+            <h3>创建新隧道</h3>
+            <div class="tunnel-form">
+                <div class="form-group">
+                    <label>端口</label>
+                    <input type="number" @bind="_newTunnelPort" placeholder="输入端口号" />
+                </div>
+                <div class="form-group">
+                    <label>隧道名称 (可选)</label>
+                    <input type="text" @bind="_newTunnelName" placeholder="输入隧道名称" />
+                </div>
+                <button class="btn btn-success" @onclick="@CreateTunnel" disabled="@_isCreatingTunnel">
+                    @if (_isCreatingTunnel)
+                    {
+                        <span class="icon">⏳</span>
+                        <text>创建中...</text>
+                    }
+                    else
+                    {
+                        <span class="icon">➕</span>
+                        <text>创建隧道</text>
+                    }
+                </button>
+            </div>
+        </div>
+
+        @if (_showTunnelInfoBox)
+        {
+            <div class="tunnel-info-box">
+                <div class="info-box-header">
+                    <div class="info-box-icon">💡</div>
+                    <button class="info-box-close" @onclick="@HideTunnelInfoBox">✕</button>
+                </div>
+                <div class="info-box-content">
+                    <p class="info-box-title">一键发布至公网</p>
+                    <p class="info-box-text">鼠标一点，即可将内网站点发布至公网，方便给客户演示、远程调试和协同开发</p>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        background: #1e1e1e;
+        color: #e0e0e0;
+    }
+    
+    .container {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #1e1e1e;
+        color: #e0e0e0;
+        min-height: 100vh;
+        box-sizing: border-box;
+    }
+    
+    .header {
+        text-align: center;
+        margin-bottom: 30px;
+        position: relative;
+        width: 100%;
+    }
+    
+    .header h1 {
+        font-size: 48px;
+        margin: 0 0 10px 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .subtitle {
+        font-size: 16px;
+        color: #a0a0a0;
+        margin: 0;
+    }
+    
+    .header-actions {
+        position: absolute;
+        top: 0;
+        right: 0;
+        display: flex;
+        gap: 8px;
+    }
+    
+    .home-btn {
+        background: #252525;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 20px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .home-btn:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+        transform: scale(1.05);
+    }
+    
+    .theme-toggle {
+        background: #252525;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 20px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .theme-toggle:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+        transform: scale(1.05);
+    }
+    
+    .tunnel-section {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+    }
+    
+    .tunnel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: #2a2a2a;
+        border-radius: 8px;
+    }
+    
+    .tunnel-actions {
+        display: flex;
+        gap: 12px;
+    }
+    
+    .cloudflared-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .status-label {
+        font-size: 14px;
+        color: #a0a0a0;
+    }
+    
+    .status-checking {
+        color: #f39c12;
+        font-size: 14px;
+    }
+    
+    .status-success {
+        color: #2ecc71;
+        font-size: 14px;
+        font-weight: 600;
+    }
+    
+    .status-error {
+        color: #e74c3c;
+        font-size: 14px;
+    }
+    
+    .update-available {
+        color: #f39c12;
+        font-size: 12px;
+        padding: 4px 8px;
+        background: rgba(243, 156, 18, 0.2);
+        border-radius: 4px;
+    }
+    
+    .btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .btn-small {
+        padding: 6px 12px;
+        font-size: 12px;
+        border-radius: 6px;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .btn-success {
+        background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+        color: white;
+    }
+    
+    .btn-danger {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        color: white;
+    }
+    
+    .btn-update {
+        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+    }
+    
+    .btn-update:hover:not(:disabled) {
+        box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+    }
+    
+    .btn-download {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        color: white;
+        text-decoration: none;
+    }
+    
+    .btn-download:hover {
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+    }
+    
+    .update-progress-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 180px;
+    }
+    
+    .update-progress-bar {
+        width: 100%;
+        height: 6px;
+        background: #353535;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    
+    .update-progress-fill {
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 3px;
+        transition: width 0.3s ease;
+    }
+    
+    .update-progress-text {
+        font-size: 12px;
+        color: #a0a0a0;
+        white-space: nowrap;
+    }
+    
+    .create-tunnel {
+        background: #2a2a2a;
+        border-radius: 12px;
+        padding: 24px;
+    }
+    
+    .create-tunnel h3 {
+        margin: 0 0 20px 0;
+        font-size: 18px;
+        color: #e0e0e0;
+    }
+    
+    .tunnel-info-box {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    .info-box-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+    
+    .info-box-icon {
+        font-size: 32px;
+        flex-shrink: 0;
+    }
+    
+    .info-box-close {
+        background: transparent;
+        border: none;
+        color: #ffffff;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: background-color 0.2s ease;
+    }
+    
+    .info-box-close:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .info-box-content {
+        flex: 1;
+    }
+    
+    .info-box-title {
+        margin: 0 0 8px 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: white;
+    }
+    
+    .info-box-text {
+        margin: 0;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.9);
+        line-height: 1.6;
+    }
+    
+    .tunnel-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .form-group label {
+        font-size: 14px;
+        color: #b0b0b0;
+    }
+    
+    .form-group input {
+        padding: 12px 16px;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        background: #1e1e1e;
+        color: #e0e0e0;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    
+    .form-group input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .tunnel-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        justify-content: flex-start;
+    }
+    
+    .tunnel-card {
+        width: 300px;
+        background: #2a2a2a;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #353535;
+        transition: all 0.3s ease;
+    }
+    
+    .tunnel-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        border-color: #667eea;
+    }
+    
+    .tunnel-card.active {
+        border-left: 4px solid #2ecc71;
+    }
+    
+    .tunnel-info {
+        margin-bottom: 16px;
+    }
+    
+    .tunnel-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    
+    .tunnel-port {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+    }
+    
+    .tunnel-port .label {
+        font-size: 12px;
+        color: #a0a0a0;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .tunnel-port .value {
+        font-size: 32px;
+        font-weight: 700;
+        color: #667eea;
+    }
+    
+    .tunnel-status {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    .tunnel-status.status-active {
+        background: rgba(46, 204, 113, 0.2);
+        color: #2ecc71;
+    }
+    
+    .tunnel-status.status-inactive {
+        background: rgba(231, 76, 60, 0.2);
+        color: #e74c3c;
+    }
+    
+    .tunnel-url {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: #1e1e1e;
+        border-radius: 6px;
+        margin-bottom: 12px;
+    }
+    
+    .tunnel-url .label {
+        font-size: 12px;
+        color: #a0a0a0;
+    }
+    
+    .url-link {
+        color: #667eea;
+        text-decoration: none;
+        font-size: 14px;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .url-link:hover {
+        text-decoration: underline;
+    }
+    
+    .copy-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .copy-btn:hover {
+        background: #3a3a3a;
+    }
+    
+    .tunnel-details {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .tunnel-error {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: rgba(231, 76, 60, 0.1);
+        border-radius: 6px;
+    }
+    
+    .tunnel-error .error-icon {
+        font-size: 16px;
+    }
+    
+    .tunnel-error .error-text {
+        font-size: 14px;
+        color: #e74c3c;
+    }
+    
+    .tunnel-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+    
+    .btn-icon {
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 8px;
+        font-size: 18px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #3a3a3a;
+        color: #b0b0b0;
+    }
+    
+    .btn-icon:hover {
+        transform: scale(1.1);
+    }
+    
+    .btn-icon.btn-warning {
+        background: #f39c12;
+        color: white;
+    }
+    
+    .btn-icon.btn-warning:hover {
+        background: #e67e22;
+    }
+    
+    .btn-icon.btn-danger {
+        background: #e74c3c;
+        color: white;
+    }
+    
+    .btn-icon.btn-danger:hover {
+        background: #c0392b;
+    }
+    
+    .empty {
+        text-align: center;
+        padding: 80px 20px;
+    }
+    
+    .empty-icon {
+        font-size: 80px;
+        margin-bottom: 20px;
+        opacity: 0.3;
+    }
+    
+    .empty h2 {
+        font-size: 24px;
+        margin: 0 0 10px 0;
+        color: #a0a0a0;
+    }
+    
+    .empty p {
+        color: #808080;
+        margin: 0;
+    }
+    
+    .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        min-width: 300px;
+        max-width: 400px;
+        padding: 16px 20px;
+        border-radius: 8px;
+        background: #2a2a2a;
+        border: 1px solid #353535;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+    }
+    
+    @@keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    .notification.success {
+        border-left: 4px solid #2ecc71;
+    }
+    
+    .notification.error {
+        border-left: 4px solid #e74c3c;
+    }
+    
+    .notification.warning {
+        border-left: 4px solid #f39c12;
+    }
+    
+    .notification.info {
+        border-left: 4px solid #3498db;
+    }
+    
+    .notification-icon {
+        font-size: 20px;
+        font-weight: bold;
+    }
+    
+    .notification.success .notification-icon {
+        color: #2ecc71;
+    }
+    
+    .notification.error .notification-icon {
+        color: #e74c3c;
+    }
+    
+    .notification.warning .notification-icon {
+        color: #f39c12;
+    }
+    
+    .notification.info .notification-icon {
+        color: #3498db;
+    }
+    
+    .notification-message {
+        font-size: 14px;
+        color: #e0e0e0;
+    }
+    
+    .notification-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        color: #a0a0a0;
+        padding: 4px;
+        margin-left: auto;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .notification-close:hover {
+        background: #3a3a3a;
+        color: #e0e0e0;
+    }
+    
+    .container.light {
+        background: #f5f5f5;
+        color: #333333;
+    }
+</style>
+
+@code {
+    private List<CloudflareTunnel> _tunnels = new();
+    private CloudflaredStatus? _cloudflaredStatus;
+    private int _newTunnelPort;
+    private string _newTunnelName = string.Empty;
+    private bool _isCreatingTunnel = false;
+    private bool _isUpdatingCloudflared = false;
+    private CloudflaredUpdateProgress? _updateProgress;
+    private bool _showNotification = false;
+    private string _notificationMessage = string.Empty;
+    private string _notificationType = string.Empty;
+    private string _notificationIcon = string.Empty;
+    private bool _showTunnelInfoBox = true;
+    private System.Threading.Timer? _tunnelTimer;
+    private bool _isInitialized = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckCloudflaredStatus();
+        await LoadTunnelsAsync();
+        _isInitialized = true;
+        _tunnelTimer = new System.Threading.Timer(_ => UpdateTunnelStatus(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5));
+    }
+
+    public void Dispose()
+    {
+        _tunnelTimer?.Dispose();
+    }
+
+    private async Task LoadTunnelsAsync()
+    {
+        try
+        {
+            _tunnels = TunnelService.GetTunnels();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading tunnels");
+            ShowNotification("加载隧道失败", "error");
+        }
+    }
+
+    private async Task RefreshTunnels()
+    {
+        try
+        {
+            _tunnels = TunnelService.GetTunnels();
+            ShowNotification("隧道已刷新", "success");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error refreshing tunnels");
+            ShowNotification("刷新隧道失败", "error");
+        }
+    }
+
+    private async Task CreateTunnel()
+    {
+        if (string.IsNullOrWhiteSpace(_newTunnelPort.ToString()) || _newTunnelPort <= 0)
+        {
+            ShowNotification("请输入有效的端口号", "warning");
+            return;
+        }
+
+        _isCreatingTunnel = true;
+        StateHasChanged();
+
+        try
+        {
+            var tunnel = await TunnelService.CreateTunnelAsync(_newTunnelPort, _newTunnelName);
+            _tunnels = TunnelService.GetTunnels();
+            ShowNotification($"隧道已创建: {tunnel.TunnelUrl}", "success");
+            _newTunnelPort = 0;
+            _newTunnelName = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating tunnel");
+            ShowNotification($"创建隧道失败: {ex.Message}", "error");
+        }
+        finally
+        {
+            _isCreatingTunnel = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task StopTunnel(int port)
+    {
+        try
+        {
+            TunnelService.StopTunnel(port);
+            _tunnels = TunnelService.GetTunnels();
+            ShowNotification($"端口 {port} 的隧道已停止", "success");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error stopping tunnel");
+            ShowNotification($"停止隧道失败: {ex.Message}", "error");
+        }
+    }
+
+    private async Task RestartTunnel(int port)
+    {
+        try
+        {
+            var tunnel = await TunnelService.RestartTunnelAsync(port);
+            _tunnels = TunnelService.GetTunnels();
+            ShowNotification($"端口 {port} 的隧道已重启", "success");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error restarting tunnel");
+            ShowNotification($"重启隧道失败: {ex.Message}", "error");
+        }
+    }
+
+    private async Task StopAllTunnels()
+    {
+        try
+        {
+            TunnelService.StopAllTunnels();
+            _tunnels.Clear();
+            ShowNotification("所有隧道已停止", "success");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error stopping all tunnels");
+            ShowNotification($"停止所有隧道失败: {ex.Message}", "error");
+        }
+    }
+
+    private async Task CheckCloudflaredStatus()
+    {
+        try
+        {
+            _cloudflaredStatus = await TunnelService.GetCloudflaredStatusWithUpdateCheckAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error checking cloudflared status");
+        }
+    }
+
+    private async Task UpdateCloudflared()
+    {
+        _isUpdatingCloudflared = true;
+        StateHasChanged();
+
+        try
+        {
+            var newVersion = await TunnelService.UpdateCloudflaredAsync();
+            await CheckCloudflaredStatus();
+            ShowNotification($"Cloudflared 已升级到 {newVersion}", "success");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating cloudflared");
+            ShowNotification($"升级失败: {ex.Message}", "error");
+        }
+        finally
+        {
+            _isUpdatingCloudflared = false;
+            StateHasChanged();
+        }
+    }
+
+    private void UpdateTunnelStatus()
+    {
+        if (!_isInitialized) return;
+        
+        try
+        {
+            TunnelService.UpdateTunnelStatus();
+            _tunnels = TunnelService.GetTunnels();
+            _ = InvokeAsync(() => StateHasChanged());
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating tunnel status");
+        }
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+            ShowNotification("已复制到剪贴板", "success");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error copying to clipboard");
+            ShowNotification("复制失败", "error");
+        }
+    }
+
+    private void ShowNotification(string message, string type = "success")
+    {
+        _notificationMessage = message;
+        _notificationType = type;
+        _notificationIcon = type switch
+        {
+            "success" => "✓",
+            "error" => "✕",
+            "warning" => "⚠",
+            "info" => "ℹ",
+            _ => "ℹ"
+        };
+        _showNotification = true;
+        StateHasChanged();
+    }
+
+    private void HideNotification()
+    {
+        _showNotification = false;
+        StateHasChanged();
+    }
+
+    private void HideTunnelInfoBox()
+    {
+        _showTunnelInfoBox = false;
+        StateHasChanged();
+    }
+
+    private void ToggleTheme()
+    {
+        ThemeService.ToggleTheme();
+    }
+
+    private void GoToHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+}
