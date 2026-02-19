@@ -922,7 +922,26 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadPortsAsync();
+        await LoadPortsFromCacheAsync();
+    }
+
+    private async Task LoadPortsFromCacheAsync()
+    {
+        try
+        {
+            _ports = PortScanner.GetPorts();
+            _filteredPorts = _ports.ToList();
+            
+            if (_ports.Count == 0)
+            {
+                await LoadPortsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading ports from cache");
+            await LoadPortsAsync();
+        }
     }
 
     private async Task LoadPortsAsync()
