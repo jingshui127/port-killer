@@ -906,6 +906,7 @@
         try
         {
             await Task.Delay(500);
+            await PortScanner.RefreshPortsAsync();
             _ports = PortScanner.GetPorts();
             _filteredPorts = _ports.ToList();
         }
