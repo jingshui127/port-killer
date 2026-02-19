@@ -347,7 +347,20 @@ public class TunnelService
         {
             if (!string.IsNullOrEmpty(e.Data))
             {
-                _logger?.LogError($"[TunnelService] Error: {e.Data}");
+                var lowerLine = e.Data.ToLower();
+                if (lowerLine.Contains("err") || 
+                    lowerLine.Contains("fatal") ||
+                    lowerLine.Contains("failed to dial") ||
+                    lowerLine.Contains("permission denied") ||
+                    lowerLine.Contains("could not") ||
+                    lowerLine.Contains("unable to"))
+                {
+                    _logger?.LogError($"[TunnelService] Error: {e.Data}");
+                }
+                else
+                {
+                    _logger?.LogInformation($"[TunnelService] Cloudflared: {e.Data}");
+                }
                 ParseOutput(port, e.Data);
             }
         };
