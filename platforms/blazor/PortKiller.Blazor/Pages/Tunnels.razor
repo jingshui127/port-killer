@@ -872,6 +872,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await TunnelService.InitializeAsync();
         await CheckCloudflaredStatus();
         await LoadTunnelsAsync();
         _isInitialized = true;
