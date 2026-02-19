@@ -49,6 +49,13 @@
                 <span class="icon">↻</span>
                 <text>刷新</text>
             </button>
+            @if (_filteredPorts.Count > 0)
+            {
+                <div class="port-count">
+                    <span class="count-label">端口总数:</span>
+                    <span class="count-value">@_filteredPorts.Count</span>
+                </div>
+            }
         </div>
 
         <div class="filter-search-container">
@@ -167,6 +174,27 @@
                     else if (_cloudflaredStatus.IsInstalled)
                     {
                         <span class="status-success">已安装 (@_cloudflaredStatus.Version)</span>
+                        @if (_isUpdatingCloudflared && _updateProgress != null)
+                        {
+                            <div class="update-progress-container">
+                                <div class="update-progress-bar">
+                                    <div class="update-progress-fill" style="width: @_updateProgress.Progress%"></div>
+                                </div>
+                                <span class="update-progress-text">@_updateProgress.Message</span>
+                            </div>
+                        }
+                        else if (_cloudflaredStatus.HasUpdate)
+                        {
+                            <span class="update-available">有新版本 @_cloudflaredStatus.LatestVersion</span>
+                            <button class="btn btn-small btn-update" @onclick="@UpdateCloudflared" disabled="@_isUpdatingCloudflared" title="升级Cloudflared到最新版本">
+                                <span class="icon">⬆</span>
+                                <text>升级</text>
+                            </button>
+                            <a href="https://github.com/cloudflare/cloudflared/releases/latest" target="_blank" class="btn btn-small btn-download" title="手动下载最新版本">
+                                <span class="icon">⬇</span>
+                                <text>下载</text>
+                            </a>
+                        }
                     }
                     else
                     {
@@ -208,7 +236,7 @@
                                         <span class="label">端口</span>
                                         <span class="value">@tunnel.Port</span>
                                     </div>
-                                    <div class="tunnel-status @(tunnel.IsActive ? "status-active" : "status-inactive")">
+                                    <div class="tunnel-status @(tunnel.IsActive ? "status-active" : "status-inactive")" title="@(tunnel.IsActive ? "隧道正在运行中" : "隧道已停止或未启动")">
                                         @tunnel.Status
                                     </div>
                                 </div>
@@ -340,7 +368,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" @onclick="@(() => { var port = _selectedPort.Port; ClosePortDetailsModal(); _ = CreateTunnelForPort(port); })">
+                <button class="btn btn-primary" @onclick="@(async () => { var port = _selectedPort.Port; ClosePortDetailsModal(); await CreateTunnelForPort(port); })">
                     <span class="icon">🌐</span> 创建隧道
                 </button>
                 <button class="btn btn-danger" @onclick="@(() => { var port = _selectedPort.Port; ClosePortDetailsModal(); KillPort(port); })">
@@ -476,7 +504,30 @@
     .actions {
         display: flex;
         justify-content: center;
+        align-items: center;
+        gap: 16px;
         margin-bottom: 20px;
+    }
+    
+    .port-count {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #2a2a2a;
+        border-radius: 8px;
+        border: 1px solid #353535;
+    }
+    
+    .count-label {
+        font-size: 14px;
+        color: #a0a0a0;
+    }
+    
+    .count-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #667eea;
     }
     
     .btn {
@@ -551,6 +602,12 @@
     .btn-success {
         background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
         color: white;
+    }
+    
+    .btn-small {
+        padding: 6px 12px;
+        font-size: 12px;
+        border-radius: 6px;
     }
     
     .btn:hover:not(:disabled) {
@@ -879,6 +936,61 @@
     .status-error {
         color: #e74c3c;
         font-size: 14px;
+    }
+    
+    .update-available {
+        color: #f39c12;
+        font-size: 12px;
+        padding: 4px 8px;
+        background: rgba(243, 156, 18, 0.2);
+        border-radius: 4px;
+    }
+    
+    .btn-update {
+        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+    }
+    
+    .btn-update:hover:not(:disabled) {
+        box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+    }
+    
+    .btn-download {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        color: white;
+        text-decoration: none;
+    }
+    
+    .btn-download:hover {
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+    }
+    
+    .update-progress-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 180px;
+    }
+    
+    .update-progress-bar {
+        width: 100%;
+        height: 6px;
+        background: #353535;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    
+    .update-progress-fill {
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 3px;
+        transition: width 0.3s ease;
+    }
+    
+    .update-progress-text {
+        font-size: 12px;
+        color: #a0a0a0;
+        white-space: nowrap;
     }
     
     .create-tunnel {
@@ -1280,14 +1392,14 @@
     }
     
     .modal-content {
-        background: #2a2a2a;
-        border-radius: 12px;
-        max-width: 50vw;
-        width: 90%;
-        max-height: 80vh;
-        overflow-y: auto;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        animation: slideUp 0.3s ease;
+        background: #2a2a2a !important;
+        border-radius: 12px !important;
+        width: 400px !important;
+        max-width: 400px !important;
+        max-height: 80vh !important;
+        overflow-y: auto !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+        animation: slideUp 0.3s ease !important;
     }
     
     @@keyframes slideUp {
@@ -1425,6 +1537,19 @@
         background: #667eea;
         border-color: #667eea;
         color: white;
+    }
+    
+    .container.light .port-count {
+        background: #f0f0f0;
+        border-color: #cccccc;
+    }
+    
+    .container.light .count-label {
+        color: #666666;
+    }
+    
+    .container.light .count-value {
+        color: #667eea;
     }
     
     .container.light .filter-btn {
@@ -1678,6 +1803,29 @@
         color: #f39c12;
     }
     
+    .container.light .update-available {
+        background: #fff8e1;
+        color: #f39c12;
+    }
+    
+    .container.light .btn-update {
+        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+    }
+    
+    .container.light .btn-download {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        color: white;
+    }
+    
+    .container.light .update-progress-bar {
+        background: #e0e0e0;
+    }
+    
+    .container.light .update-progress-text {
+        color: #666666;
+    }
+    
     .container.light .url-link {
         color: #667eea;
     }
@@ -1829,6 +1977,9 @@
     private int _newTunnelPort;
     private string _newTunnelName = string.Empty;
     private bool _isCreatingTunnel = false;
+    private bool _isUpdatingCloudflared = false;
+    private CloudflaredUpdateProgress? _updateProgress;
+    private bool _isAdmin = false;
     private bool _showNotification = false;
     private string _notificationMessage = string.Empty;
     private string _notificationType = string.Empty;
@@ -1861,8 +2012,9 @@
         await LoadPortsAsync();
         await CheckCloudflaredStatus();
         await LoadTunnelsAsync();
+        await CheckAdminStatusAsync();
         
-        _tunnelTimer = new System.Threading.Timer(async _ => await UpdateTunnelStatus(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        _tunnelTimer = new System.Threading.Timer(async _ => await UpdateTunnelStatus(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5));
 
         NotificationService.OnNotificationAdded += OnNotificationAdded;
     }
@@ -1921,7 +2073,7 @@
         _showNotification = true;
         StateHasChanged();
         
-        Task.Delay(3000).ContinueWith(_ =>
+        Task.Delay(5000).ContinueWith(_ =>
         {
             _showNotification = false;
             InvokeAsync(StateHasChanged);
@@ -2055,7 +2207,9 @@
         try
         {
             PortScanner.KillPort(port);
+            await PortScanner.RefreshPortsAsync();
             _ports = PortScanner.GetPorts();
+            _filteredPorts = _ports.ToList();
             ShowNotification($"端口 {port} 已终止", "success");
         }
         catch (Exception ex)
@@ -2118,6 +2272,138 @@
         }
     }
 
+    private async Task CheckAdminStatusAsync()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<AdminStatus>("/api/ports/admin/check");
+            _isAdmin = response?.isAdmin ?? false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error checking admin status");
+        }
+    }
+
+    private class AdminStatus
+    {
+        public bool isAdmin { get; set; }
+        public int refreshInterval { get; set; }
+    }
+
+    private async Task UpdateCloudflared()
+    {
+        if (!_isAdmin)
+        {
+            ShowNotification("升级需要管理员权限，请以管理员身份运行应用", "error");
+            return;
+        }
+
+        _isUpdatingCloudflared = true;
+        _updateProgress = new CloudflaredUpdateProgress { Status = "starting", Message = "准备升级...", Progress = 0 };
+        StateHasChanged();
+
+        var cts = new System.Threading.CancellationTokenSource();
+        var progressTask = Task.Run(async () =>
+        {
+            try
+            {
+                using var httpClient = new System.Net.Http.HttpClient();
+                using var request = new System.Net.Http.HttpRequestMessage(
+                    System.Net.Http.HttpMethod.Get, 
+                    "/api/ports/tunnels/cloudflared/update/progress");
+                
+                using var response = await httpClient.SendAsync(
+                    request, 
+                    System.Net.Http.HttpCompletionOption.ResponseHeadersRead, 
+                    cts.Token);
+                
+                using var stream = await response.Content.ReadAsStreamAsync(cts.Token);
+                using var reader = new System.IO.StreamReader(stream);
+                
+                while (!reader.EndOfStream && !cts.Token.IsCancellationRequested)
+                {
+                    var line = await reader.ReadLineAsync(cts.Token);
+                    if (!string.IsNullOrEmpty(line) && line.StartsWith("data: "))
+                    {
+                        var json = line.Substring(6);
+                        try
+                        {
+                            var progress = System.Text.Json.JsonSerializer.Deserialize<CloudflaredUpdateProgress>(json);
+                            if (progress != null)
+                            {
+                                _updateProgress = progress;
+                                await InvokeAsync(StateHasChanged);
+                                
+                                if (progress.IsComplete)
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                        catch
+                        {
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error receiving update progress");
+            }
+        }, cts.Token);
+
+        await Task.Delay(500);
+
+        try
+        {
+            var response = await Http.PostAsync("/api/ports/tunnels/cloudflared/update", null);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<UpdateResult>();
+                await CheckCloudflaredStatus();
+                var versionInfo = !string.IsNullOrEmpty(result?.Version) ? $" ({result.Version})" : "";
+                ShowNotification($"Cloudflared 升级成功{versionInfo}", "success");
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                ShowNotification($"升级失败: {error}", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating cloudflared");
+            ShowNotification($"升级失败: {ex.Message}", "error");
+        }
+        finally
+        {
+            cts.Cancel();
+            await progressTask;
+            _isUpdatingCloudflared = false;
+            _updateProgress = null;
+            StateHasChanged();
+        }
+    }
+
+    private class UpdateResult
+    {
+        public bool Success { get; set; }
+        public string? Message { get; set; }
+        public string? Version { get; set; }
+    }
+
+    private class CloudflaredUpdateProgress
+    {
+        public string Status { get; set; } = "";
+        public string Message { get; set; } = "";
+        public int Progress { get; set; }
+        public string? Version { get; set; }
+        public bool IsComplete { get; set; }
+        public bool IsError { get; set; }
+    }
+
     private async Task LoadTunnelsAsync()
     {
         try
@@ -2138,7 +2424,9 @@
     {
         try
         {
-            var response = await Http.GetFromJsonAsync<List<CloudflareTunnel>>("/api/ports/tunnels");
+            // 使用超时来避免网络请求阻塞
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            var response = await Http.GetFromJsonAsync<List<CloudflareTunnel>>("/api/ports/tunnels", cts.Token);
             if (response != null)
             {
                 _tunnels = response;
@@ -2149,6 +2437,11 @@
         }
         catch (ObjectDisposedException)
         {
+            // 应用程序正在关闭，忽略
+        }
+        catch (OperationCanceledException)
+        {
+            // 网络请求超时，忽略
         }
         catch (Exception ex)
         {
@@ -2280,9 +2573,11 @@
 
     private void ShowPortDetails(PortInfo port)
     {
+        // 立即设置变量，确保UI能够快速响应
         _selectedPort = port;
         _showPortDetailsModal = true;
-        StateHasChanged();
+        // 使用InvokeAsync确保在UI线程上更新状态
+        _ = InvokeAsync(() => StateHasChanged());
     }
 
     private void ClosePortDetailsModal()

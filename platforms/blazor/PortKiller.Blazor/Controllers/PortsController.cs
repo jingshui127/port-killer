@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using PortKiller.Blazor.Services;
 using PortKiller.Blazor.Models;
+using System.Text.Json;
 
 namespace PortKiller.Blazor.Controllers;
 
@@ -126,11 +127,78 @@ public class PortsController : ControllerBase
 
     [HttpGet]
     [Route("tunnels/cloudflared/status")]
-    public ActionResult CheckCloudflared()
+    public async Task<ActionResult> CheckCloudflared()
     {
-        var isInstalled = _tunnelService.IsCloudflaredInstalled();
-        var version = _tunnelService.GetCloudflaredVersion();
-        return Ok(new CloudflaredStatus { IsInstalled = isInstalled, Version = version });
+        var status = await _tunnelService.GetCloudflaredStatusWithUpdateCheckAsync();
+        return Ok(status);
+    }
+
+    [HttpPost]
+    [Route("tunnels/cloudflared/update")]
+    public async Task<ActionResult> UpdateCloudflared()
+    {
+        try
+        {
+            var newVersion = await _tunnelService.UpdateCloudflaredAsync();
+            return Ok(new { success = true, message = "Cloudflared updated successfully", version = newVersion });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpGet]
+    [Route("tunnels/cloudflared/update/progress")]
+    public async Task GetUpdateProgress(CancellationToken cancellationToken)
+    {
+        Response.Headers.Append("Content-Type", "text/event-stream");
+        Response.Headers.Append("Cache-Control", "no-cache");
+        Response.Headers.Append("Connection", "keep-alive");
+
+        var tcs = new TaskCompletionSource<bool>();
+
+        EventHandler<CloudflaredUpdateProgress>? handler = null;
+        handler = (sender, progress) =>
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(progress);
+                var sseMessage = $"data: {json}\n\n";
+                Response.WriteAsync(sseMessage, cancellationToken).GetAwaiter().GetResult();
+                
+                if (progress.IsComplete)
+                {
+                    tcs.TrySetResult(true);
+                }
+            }
+            catch
+            {
+                tcs.TrySetResult(false);
+            }
+        };
+
+        _tunnelService.UpdateProgressChanged += handler;
+
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromMinutes(3), cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+        }
+        finally
+        {
+            _tunnelService.UpdateProgressChanged -= handler;
+        }
+    }
+
+    [HttpGet]
+    [Route("admin/check")]
+    public ActionResult CheckAdmin()
+    {
+        var isAdmin = TunnelService.IsRunningAsAdministrator();
+        return Ok(new { isAdmin, refreshInterval = 1000 });
     }
 }
 
