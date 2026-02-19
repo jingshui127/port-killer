@@ -13,6 +13,12 @@
         <h1>PortManager</h1>
         <p class="subtitle">端口管理器</p>
         <div class="header-actions">
+            <button class="nav-btn ports-btn" @onclick="@GoToPorts" title="端口管理">
+                <span>🔌</span>
+            </button>
+            <button class="nav-btn tunnels-btn" @onclick="@GoToTunnels" title="隧道管理">
+                <span>🌐</span>
+            </button>
             <button class="about-btn" @onclick="@GoToAbout" title="关于">
                 <span>ℹ</span>
             </button>
@@ -124,6 +130,35 @@
         right: 0;
         display: flex;
         gap: 8px;
+    }
+    
+    .nav-btn {
+        background: #252525;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 20px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .nav-btn:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+        transform: scale(1.05);
+    }
+    
+    .ports-btn:hover {
+        border-color: #667eea;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    .tunnels-btn:hover {
+        border-color: #9b59b6;
+        box-shadow: 0 4px 12px rgba(155, 89, 182, 0.3);
     }
     
     .about-btn {

@@ -19,6 +19,9 @@
             <button class="home-btn" @onclick="@GoToHome" title="返回主页">
                 <span>🏠</span>
             </button>
+            <button class="nav-btn ports-btn" @onclick="@GoToPorts" title="端口管理">
+                <span>🔌</span>
+            </button>
             <button class="theme-toggle" @onclick="@ToggleTheme" title="切换主题">
                 <span>@(ThemeService.IsDarkTheme ? "☀" : "🌙")</span>
             </button>
@@ -238,6 +241,30 @@
         right: 0;
         display: flex;
         gap: 8px;
+    }
+    
+    .nav-btn {
+        background: #252525;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 20px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .nav-btn:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+        transform: scale(1.05);
+    }
+    
+    .ports-btn:hover {
+        border-color: #667eea;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
     }
     
     .home-btn {
@@ -1060,5 +1087,10 @@
     private void GoToHome()
     {
         Navigation.NavigateTo("/");
+    }
+
+    private void GoToPorts()
+    {
+        Navigation.NavigateTo("/ports");
     }
 }
