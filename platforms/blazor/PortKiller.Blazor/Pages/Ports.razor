@@ -157,42 +157,50 @@
         @if (_isTableView)
         {
             <div class="port-table-container">
-                <MTable Items="_filteredPorts" TItem="PortInfo" Dense="true" Class="port-table">
-                    <HeaderContent>
-                        <MTh>端口</MTh>
-                        <MTh>进程名</MTh>
-                        <MTh>地址</MTh>
-                        <MTh>用户</MTh>
-                        <MTh>PID</MTh>
-                        <MTh>操作</MTh>
-                    </HeaderContent>
-                    <RowContent>
-                        <MTd>@context.Port</MTd>
-                        <MTd>@context.ProcessName</MTd>
-                        <MTd>@context.Address</MTd>
-                        <MTd>@context.User</MTd>
-                        <MTd>@context.Pid</MTd>
-                        <MTd>
+                <MDataTable Headers="_tableHeaders" Items="_filteredPorts" ItemsPerPage="20" Dense="true" Class="port-table">
+                    <ItemColContent>
+                        @if (context.Header.Value == nameof(PortInfo.Port))
+                        {
+                            @context.Item.Port
+                        }
+                        else if (context.Header.Value == nameof(PortInfo.ProcessName))
+                        {
+                            @context.Item.ProcessName
+                        }
+                        else if (context.Header.Value == nameof(PortInfo.Address))
+                        {
+                            @context.Item.Address
+                        }
+                        else if (context.Header.Value == nameof(PortInfo.User))
+                        {
+                            @context.Item.User
+                        }
+                        else if (context.Header.Value == nameof(PortInfo.Pid))
+                        {
+                            @context.Item.Pid
+                        }
+                        else if (context.Header.Value == "Actions")
+                        {
                             <div class="table-actions">
-                                <button class="btn-icon @(context.IsFavorite ? "favorite" : "")" @onclick="@(() => ToggleFavorite(context.Port))" title="收藏">
-                                    <span>@(context.IsFavorite ? "★" : "☆")</span>
+                                <button class="btn-icon @(context.Item.IsFavorite ? "favorite" : "")" @onclick="@(() => ToggleFavorite(context.Item.Port))" title="收藏">
+                                    <span>@(context.Item.IsFavorite ? "★" : "☆")</span>
                                 </button>
-                                <button class="btn-icon @(context.IsWatched ? "watched" : "")" @onclick="@(() => ToggleWatch(context.Port))" title="监控">
-                                    <span>@(context.IsWatched ? "👁" : "👁")</span>
+                                <button class="btn-icon @(context.Item.IsWatched ? "watched" : "")" @onclick="@(() => ToggleWatch(context.Item.Port))" title="监控">
+                                    <span>@(context.Item.IsWatched ? "👁" : "👁")</span>
                                 </button>
-                                <button class="btn-icon btn-tunnel" @onclick="@(() => CreateTunnelForPort(context.Port))" title="创建隧道">
+                                <button class="btn-icon btn-tunnel" @onclick="@(() => CreateTunnelForPort(context.Item.Port))" title="创建隧道">
                                     <span>🌐</span>
                                 </button>
-                                <button class="btn-icon btn-info" @onclick="@(() => ShowPortDetails(context))" title="查看详情">
+                                <button class="btn-icon btn-info" @onclick="@(() => ShowPortDetails(context.Item))" title="查看详情">
                                     <span>ℹ</span>
                                 </button>
-                                <button class="btn-icon btn-danger" @onclick="@(() => KillPort(context.Port))" title="终止">
+                                <button class="btn-icon btn-danger" @onclick="@(() => KillPort(context.Item.Port))" title="终止">
                                     <span>✕</span>
                                 </button>
                             </div>
-                        </MTd>
-                    </RowContent>
-                </MTable>
+                        }
+                    </ItemColContent>
+                </MDataTable>
             </div>
         }
     }
@@ -1035,6 +1043,15 @@
 @code {
     private List<PortInfo> _ports = new();
     private List<PortInfo> _filteredPorts = new();
+    private List<DataTableHeader<PortInfo>> _tableHeaders = new()
+    {
+        new() { Text = "端口", Value = nameof(PortInfo.Port), Width = "80px" },
+        new() { Text = "进程名", Value = nameof(PortInfo.ProcessName), Width = "150px" },
+        new() { Text = "地址", Value = nameof(PortInfo.Address) },
+        new() { Text = "用户", Value = nameof(PortInfo.User), Width = "100px" },
+        new() { Text = "PID", Value = nameof(PortInfo.Pid), Width = "80px" },
+        new() { Text = "操作", Value = "Actions", Width = "200px", Sortable = false }
+    };
     private bool _isLoading = false;
     private string _searchText = string.Empty;
     private PortInfo? _selectedPort;
