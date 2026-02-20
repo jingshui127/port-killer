@@ -2,6 +2,12 @@
 
 A native Windows app for finding and killing processes on open ports. Perfect for developers who need to quickly free up ports like 3000, 8080, 5173, etc.
 
+## About
+
+PortKiller for Windows is developed by 科控物联. It provides developers with an intuitive interface to monitor, manage, and control network ports and processes on Windows operating systems.
+
+**中文用户支持：科控物联 | QQ: 2492123056**
+
 ## Features
 
 - 🔍 Auto-discovers listening TCP ports
@@ -218,10 +224,27 @@ Make sure you're running as Administrator. Some ports require elevated privilege
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for development guidelines.
 
+## Support
+
+### 中文支持
+- **团队**: 科控物联
+- **QQ**: 2492123056
+- **反馈**: 欢迎通过QQ反馈问题和建议
+
+### English Support
+- **GitHub Issues**: [Report a bug](https://github.com/productdevbook/port-killer/issues)
+- **GitHub Discussions**: [Ask a question](https://github.com/productdevbook/port-killer/discussions)
+
 ## License
 
 MIT License - see [LICENSE](../../LICENSE).
 
 ## Credits
 
-Windows port by the PortKiller team. Original macOS version available at [github.com/productdevbook/port-killer](https://github.com/productdevbook/port-killer).
+Windows port by PortKiller team. Original macOS version available at [github.com/productdevbook/port-killer](https://github.com/productdevbook/port-killer).
+
+---
+
+**Developed with ❤️ by 科控物联**
+
+**中文用户支持：QQ 2492123056**

@@ -1,83 +1,12 @@
-# PortKiller
+# PortKiller Blazor Web Version
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/productdevbook/port-killer/refs/heads/main/platforms/macos/Resources/AppIcon.svg" alt="PortKiller Icon" width="128" height="128">
-</p>
-
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-  <a href="https://www.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-15.0%2B-brightgreen" alt="macOS"></a>
-  <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%2B-0078D6" alt="Windows"></a>
-  <a href="https://www.linux.org/"><img src="https://img.shields.io/badge/Linux-All%20Distros-FFA500" alt="Linux"></a>
-  <a href="https://github.com/productdevbook/port-killer/releases"><img src="https://img.shields.io/github/v/release/productdevbook/port-killer" alt="GitHub Release"></a>
-</p>
-
-<p align="center">
-  A powerful cross-platform port management tool for developers.<br>
-  Monitor ports, manage Kubernetes port forwards, integrate Cloudflare Tunnels, and kill processes with one click.
-</p>
-
-<p align="center">
-  <strong>中文用户支持：科控物联 | QQ: 2492123056</strong>
-</p>
+A powerful cross-platform port management web application built with Blazor Server. Monitor ports, manage Cloudflare Tunnels, and control processes from your browser.
 
 ## About
 
-PortKiller (PortManager) is a powerful cross-platform port management tool developed by 科控物联. It provides developers with an intuitive interface to monitor, manage, and control network ports, processes, and Cloudflare Tunnels across Windows, macOS, and Linux operating systems.
+PortKiller Blazor Web Version is developed by 科控物联. It provides a web-based interface for developers to monitor, manage, and control network ports, processes, and Cloudflare Tunnels across Windows, macOS, and Linux operating systems.
 
-### macOS
-
-<p align="center">
-  <img src=".github/assets/macos.png" alt="PortKiller macOS" width="800">
-</p>
-
-### Windows
-
-<p align="center">
-  <img src=".github/assets/windows.jpeg" alt="PortKiller Windows" width="800">
-</p>
-
-### Blazor Web Version
-
-<p align="center">
-  <img src=".github/assets/blazor.png" alt="PortKiller Blazor" width="800">
-</p>
-
-## Installation
-
-### macOS
-
-**Homebrew:**
-```bash
-brew install --cask productdevbook/tap/portkiller
-```
-
-**Manual:** Download `.dmg` from [GitHub Releases](https://github.com/productdevbook/port-killer/releases).
-
-### Windows
-
-Download `.zip` from [GitHub Releases](https://github.com/productdevbook/port-killer/releases) and extract.
-
-### Linux
-
-**Download:** Download the appropriate package for your distribution from [GitHub Releases](https://github.com/productdevbook/port-killer/releases).
-
-**Build from source:**
-```bash
-git clone https://github.com/productdevbook/port-killer.git
-cd port-killer
-dotnet build
-```
-
-### Blazor Web Version
-
-**Run locally:**
-```bash
-cd platforms/blazor/PortKiller.Blazor
-dotnet run
-```
-
-**Access:** Open your browser and navigate to `http://localhost:5000`
+**中文用户支持：科控物联 | QQ: 2492123056**
 
 ## Features
 
@@ -93,12 +22,6 @@ dotnet run
 - 🗑 **Batch Operations**: Select and manage multiple ports at once
 - 📁 **Process Information**: View process path and directory information
 
-### Kubernetes Port Forwarding
-- 🔗 **Port Forward Management**: Create and manage kubectl port-forward sessions
-- 🔌 **Auto-reconnect**: Automatically reconnect on connection loss
-- 📝 **Connection Logs**: Detailed logs and status monitoring
-- 🔔 **Notifications**: Get notified on connect/disconnect events
-
 ### Cloudflare Tunnels
 - ☁️ **Tunnel Management**: View and manage active Cloudflare Tunnel connections
 - 🌐 **Quick Status**: Real-time tunnel status monitoring
@@ -107,19 +30,63 @@ dotnet run
 - 🔄 **Auto-refresh**: Automatic tunnel status updates
 
 ### Cross-Platform
-- 📍 **Menu bar integration** (macOS)
-- 🖥️ **System tray app** (Windows)
-- 🌐 **Web-based UI** (Blazor Server)
-- 🎨 **Native UI**: Optimized interface for each platform
+- 🌐 **Web-based UI**: Access from any modern browser
+- 🎨 **Modern UI**: Material Design with MASA Blazor components
 - 🌓 **Theme Support**: Dark and light theme options
 - 📱 **Responsive Design**: Works on desktop and mobile devices
+- 🔔 **Notifications**: Real-time notifications for important events
+- 📜 **Notification History**: View past notifications
 
-## Usage Guide
+## Requirements
+
+- .NET 10 Runtime
+- Modern web browser (Chrome, Firefox, Safari, Edge)
+- Administrator/root privileges (required to kill processes)
+- Cloudflared (optional, for tunnel functionality)
+
+## Installation
+
+### Option 1: Run from Source
+
+1. Clone the repository:
+```bash
+git clone https://github.com/productdevbook/port-killer.git
+cd port-killer/platforms/blazor/PortKiller.Blazor
+```
+
+2. Restore dependencies:
+```bash
+dotnet restore
+```
+
+3. Run the application:
+```bash
+dotnet run
+```
+
+4. Open your browser and navigate to `http://localhost:5000`
+
+### Option 2: Build for Production
+
+```bash
+dotnet publish -c Release -o ./publish
+```
+
+Then host the published files on any web server that supports ASP.NET Core.
+
+### Option 3: Docker (Coming Soon)
+
+```bash
+docker build -t portkiller-blazor .
+docker run -p 5000:5000 portkiller-blazor
+```
+
+## Usage
 
 ### Port Management
 
 #### Viewing Ports
-1. Open the application
+1. Open the application in your browser
 2. Navigate to the "Ports" page
 3. View all active ports with their associated processes
 4. Switch between card view and table view using the toggle button
@@ -172,28 +139,116 @@ The application provides notifications for:
 
 View notification history in the notification panel.
 
-## Technical Stack
+## Architecture
 
-### Core Technologies
-- **.NET 10**: Latest .NET framework for cross-platform development
-- **Blazor Server**: Web framework for building interactive web UIs
-- **MASA Blazor**: Material Design component library for Blazor
-- **Cloudflare Tunnel**: Secure tunneling service for exposing local services
+### Technology Stack
 
-### Platform Support
-- **Windows**: Full support with native UI
-- **macOS**: Full support with menu bar integration
-- **Linux**: Full support with web-based UI
-- **Web**: Cross-platform support via Blazor Server
+- **Framework**: .NET 10 with Blazor Server
+- **UI Library**: MASA Blazor (Material Design)
+- **Language**: C# 12
+- **State Management**: Blazor Server State Management
+- **Process Management**: System.Diagnostics.Process
+- **Tunnel Management**: Cloudflared CLI integration
+
+### Project Structure
+
+```
+PortKiller.Blazor/
+├── Pages/              # Razor pages
+│   ├── Index.razor             # Home page
+│   ├── Ports.razor             # Port management page
+│   ├── Tunnels.razor           # Tunnel management page
+│   └── About.razor             # About page
+├── Services/           # Business logic services
+│   ├── PortService.cs           # Port scanning and management
+│   ├── TunnelService.cs         # Cloudflare tunnel management
+│   ├── NotificationService.cs    # Notification system
+│   ├── SettingsService.cs       # Persistent settings
+│   └── ThemeService.cs        # Theme management
+├── Models/             # Data models
+│   ├── PortInfo.cs              # Port information model
+│   ├── CloudflareTunnel.cs      # Tunnel information model
+│   └── Notification.cs           # Notification model
+├── Components/         # Reusable components
+│   └── ...
+├── Shared/             # Shared layouts and components
+│   └── MainLayout.razor         # Main layout
+└── wwwroot/           # Static files
+    └── ...
+```
+
+### How It Works
+
+#### Port Scanning
+
+The application uses platform-specific APIs to scan for listening ports:
+
+**Windows**: Uses `GetExtendedTcpTable` API via P/Invoke
+**Linux**: Reads `/proc/net/tcp` and `/proc/net/tcp6` files
+**macOS**: Uses `lsof` command or BSD socket APIs
+
+#### Process Information
+
+**Windows**: Uses WMI (Windows Management Instrumentation) to get process details
+**Linux**: Reads `/proc/[pid]/cmdline` for command line arguments
+**macOS**: Uses `ps` command or BSD APIs
+
+#### Process Termination
+
+Two-stage approach:
+1. Try graceful shutdown (SIGTERM on Unix, CloseMainWindow on Windows)
+2. Force kill (SIGKILL on Unix, Process.Kill on Windows)
+
+#### Cloudflare Tunnel Integration
+
+- Spawns Cloudflared process with appropriate arguments
+- Monitors process output for tunnel URL
+- Tracks process status and provides control interface
+- Auto-restarts tunnels on application startup
+
+## Development
+
+### Prerequisites
+
+- .NET 10 SDK
+- Visual Studio 2022 or VS Code
+- Git
+
+### Build
+
+```bash
+dotnet build
+```
+
+### Run
+
+```bash
+dotnet run
+```
+
+### Test
+
+```bash
+dotnet test
+```
+
+### Publish
+
+```bash
+dotnet publish -c Release -o ./publish
+```
 
 ## Configuration
 
 ### Settings Location
+
+Settings are stored in:
 - **Windows**: `%APPDATA%\PortKiller\settings.json`
 - **macOS**: `~/Library/Application Support/PortKiller/settings.json`
 - **Linux**: `~/.config/PortKiller/settings.json`
 
 ### Available Settings
+
 - Refresh interval for port scanning
 - Notification preferences
 - Theme selection (dark/light)
@@ -229,14 +284,14 @@ View notification history in the notification panel.
 
 If you encounter any issues or have questions:
 
-1. **Check the documentation**: Review this README and the inline help
+1. **Check the documentation**: Review this README and inline help
 2. **Search existing issues**: Check [GitHub Issues](https://github.com/productdevbook/port-killer/issues) for similar problems
 3. **Contact support**: Reach out to 科控物联 via QQ: **2492123056**
 4. **Create an issue**: If you found a bug, create a detailed issue on GitHub
 
 ## Contributing
 
-We welcome contributions from the community! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+We welcome contributions from the community! See [CONTRIBUTING.md](../../CONTRIBUTING.md) for development setup and guidelines.
 
 ### Development Setup
 
@@ -249,14 +304,14 @@ We welcome contributions from the community! See [CONTRIBUTING.md](CONTRIBUTING.
 
 ## Roadmap
 
-- [ ] macOS and Linux native applications
 - [ ] Advanced filtering and sorting options
 - [ ] Port usage statistics and analytics
 - [ ] Integration with other tunneling services
-- [ ] Plugin system for extensibility
 - [ ] Multi-language support
 - [ ] Advanced notification rules
 - [ ] Port usage history and trends
+- [ ] Real-time collaboration features
+- [ ] API for external integrations
 
 ## Support
 
@@ -269,19 +324,11 @@ We welcome contributions from the community! See [CONTRIBUTING.md](CONTRIBUTING.
 - **GitHub Issues**: [Report a bug](https://github.com/productdevbook/port-killer/issues)
 - **GitHub Discussions**: [Ask a question](https://github.com/productdevbook/port-killer/discussions)
 
-## Sponsors
-
-<p align="center">
-  <a href="https://cdn.jsdelivr.net/gh/productdevbook/static/sponsors.svg">
-    <img src='https://cdn.jsdelivr.net/gh/productdevbook/static/sponsors.svg'/>
-  </a>
-</p>
-
 ## License
 
-MIT License - see [LICENSE](LICENSE).
+MIT License - see [LICENSE](../../LICENSE).
 
-## Acknowledgments
+## Credits
 
 - Original PortKiller project by [productdevbook](https://github.com/productdevbook)
 - Cloudflare for the excellent tunneling service

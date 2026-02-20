@@ -1,162 +1,275 @@
-# PortKiller
+# PortKiller (端口管理器)
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/productdevbook/port-killer/refs/heads/main/platforms/macos/Resources/AppIcon.svg" alt="PortKiller 图标" width="128" height="128">
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="许可证: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/许可证-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://www.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-15.0%2B-brightgreen" alt="macOS"></a>
   <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%2B-0078D6" alt="Windows"></a>
-  <a href="https://github.com/productdevbook/port-killer/releases"><img src="https://img.shields.io/github/v/release/productdevbook/port-killer" alt="GitHub 发布"></a>
-  <a href="https://dotnet.microsoft.com/download/dotnet/10.0"><img src="https://img.shields.io/badge/.NET-10.0-512BD4" alt=".NET 10.0"></a>
+  <a href="https://www.linux.org/"><img src="https://img.shields.io/badge/Linux-所有发行版-FFA500" alt="Linux"></a>
+  <a href="https://github.com/productdevbook/port-killer/releases"><img src="https://img.shields.io/github/v/release/productdevbook/port-killer" alt="GitHub Release"></a>
 </p>
 
 <p align="center">
-一款强大的跨平台端口管理工具，专为开发者设计。<br>
-监控端口、管理 Kubernetes 端口转发、集成 Cloudflare 隧道，一键终止进程。
+  一款强大的跨平台端口管理工具，专为开发者设计。<br>
+  监控端口、管理Kubernetes端口转发、集成Cloudflare隧道、一键终止进程。
 </p>
 
-## 作者
+<p align="center">
+  <strong>技术支持：科控物联 | QQ: 2492123056</strong>
+</p>
 
-**科控物联**  
-QQ: 2492123056
+## 关于
 
-## 预览
+PortKiller (端口管理器) 是由科控物联开发的强大跨平台端口管理工具。它为开发者提供了直观的界面，用于监控、管理和控制Windows、macOS和Linux操作系统上的网络端口、进程和Cloudflare隧道。
 
-### macOS
+### macOS 版本
 
 <p align="center">
   <img src=".github/assets/macos.png" alt="PortKiller macOS" width="800">
 </p>
 
-### Windows
+### Windows 版本
 
 <p align="center">
   <img src=".github/assets/windows.jpeg" alt="PortKiller Windows" width="800">
 </p>
 
-## 系统要求
+### Blazor Web 版本
 
-- **macOS**: 15.0 及以上版本
-- **Windows**: 10 及以上版本
-- **.NET**: 10.0 运行时（Windows 版本内置）
+<p align="center">
+  <img src=".github/assets/blazor.png" alt="PortKiller Blazor" width="800">
+</p>
 
 ## 安装
 
 ### macOS
 
-**Homebrew（推荐）:**
+**使用 Homebrew:**
 ```bash
 brew install --cask productdevbook/tap/portkiller
 ```
 
-**手动安装:** 从 [GitHub Releases](https://github.com/productdevbook/port-killer/releases) 下载 `.dmg` 文件，双击打开并拖拽到 Applications 文件夹。
+**手动安装:** 从 [GitHub Releases](https://github.com/productdevbook/port-killer/releases) 下载 `.dmg` 文件。
 
 ### Windows
 
-从 [GitHub Releases](https://github.com/productdevbook/port-killer/releases) 下载 `.zip` 文件，解压到任意位置，然后运行 `PortKiller.exe`。
+从 [GitHub Releases](https://github.com/productdevbook/port-killer/releases) 下载 `.zip` 文件并解压。
+
+### Linux
+
+**下载安装:** 从 [GitHub Releases](https://github.com/productdevbook/port-killer/releases) 下载适合您发行版的安装包。
+
+**从源码构建:**
+```bash
+git clone https://github.com/productdevbook/port-killer.git
+cd port-killer
+dotnet build
+```
+
+### Blazor Web 版本
+
+**本地运行:**
+```bash
+cd platforms/blazor/PortKiller.Blazor
+dotnet run
+```
+
+**访问:** 在浏览器中打开 `http://localhost:5000`
 
 ## 功能特性
 
 ### 端口管理
-- 🔍 **自动发现**: 自动扫描并显示所有监听的 TCP 端口
-- ⚡ **一键终止**: 支持优雅终止和强制终止进程
-- 🔄 **自动刷新**: 可配置刷新间隔，实时监控端口状态
-- 🔎 **智能搜索**: 按端口号、进程名称、地址等多维度搜索
-- ⭐ **收藏功能**: 收藏重要端口，方便快速访问
-- 👁️ **端口监控**: 监控端口状态变化，接收通知提醒
-- 📂 **智能分类**: 自动分类端口类型（Web 服务器、数据库、开发工具、系统）
-- 📊 **端口统计**: 显示总端口数，直观了解系统端口使用情况
+- 🔍 **自动发现**: 自动发现所有监听的TCP端口
+- ⚡ **一键终止**: 单击终止进程（优雅终止 + 强制终止）
+- 🔄 **自动刷新**: 可配置的刷新间隔，实时监控
+- 🔎 **搜索与筛选**: 按端口号或进程名快速搜索
+- ⭐ **收藏功能**: 将重要端口标记为收藏，快速访问
+- 👁 **端口监控**: 监控特定端口并接收通知
+- 📂 **智能分类**: 自动分类（Web服务器、数据库、开发工具、系统）
+- 📊 **表格视图**: 在卡片视图和表格视图之间切换，更好的数据可视化
+- 🗑 **批量操作**: 选择并一次管理多个端口
+- 📁 **进程信息**: 查看进程路径和目录信息
 
 ### Kubernetes 端口转发
-- 🔗 **端口转发管理**: 创建和管理多个 kubectl port-forward 会话
-- 🔌 **自动重连**: 连接丢失时自动尝试重连
-- 📝 **详细日志**: 记录连接日志和状态变化
-- 🔔 **状态通知**: 连接建立/断开时发送通知
+- 🔗 **端口转发管理**: 创建和管理kubectl端口转发会话
+- 🔌 **自动重连**: 连接丢失时自动重连
+- 📝 **连接日志**: 详细的日志和状态监控
+- 🔔 **通知**: 连接/断开时接收通知
 
 ### Cloudflare 隧道
-- 🌐 **内网站点发布**: 一键将内网站点发布至公网，方便演示和远程访问
-- ☁️ **隧道管理**: 查看和管理所有活动的 Cloudflare 隧道
-- 🔗 **隧道 URL**: 自动生成并显示隧道 URL，支持复制到剪贴板
-- 📊 **隧道统计**: 显示总隧道数，实时了解隧道使用情况
-- 🔄 **隧道刷新**: 支持手动刷新隧道状态
+- ☁️ **隧道管理**: 查看和管理活动的Cloudflare隧道连接
+- 🌐 **快速状态**: 实时隧道状态监控
+- 🚀 **自动启动**: 应用程序启动时自动重启隧道
+- 📊 **隧道统计**: 查看详细的隧道信息和统计数据
+- 🔄 **自动刷新**: 自动隧道状态更新
 
-### 跨平台特性
-- 📍 **菜单栏集成**: macOS 上集成到菜单栏，方便快速访问
-- 🖥️ **系统托盘应用**: Windows 上集成到系统托盘，随系统启动
-- 🎨 **原生 UI**: 各平台采用原生 UI 设计，提供一致的用户体验
-- 🌙 **深色模式**: 支持深色模式，保护视力
+### 跨平台
+- 📍 **菜单栏集成** (macOS)
+- 🖥️ **系统托盘应用** (Windows)
+- 🌐 **基于Web的UI** (Blazor Server)
+- 🎨 **原生UI**: 每个平台的优化界面
+- 🌓 **主题支持**: 深色和浅色主题选项
+- 📱 **响应式设计**: 支持桌面和移动设备
 
 ## 使用指南
 
-### 基本操作
-1. **启动应用**: 安装完成后，从 Applications 文件夹（macOS）或解压目录（Windows）启动应用
-2. **查看端口**: 应用会自动扫描并显示所有监听的端口
-3. **终止进程**: 点击端口卡片上的 "终止" 按钮，选择终止方式
-4. **搜索端口**: 在搜索框中输入端口号或进程名称进行搜索
-5. **收藏端口**: 点击端口卡片上的 "收藏" 按钮，将端口添加到收藏列表
+### 端口管理
 
-### Cloudflare 隧道使用
-1. **安装 cloudflared**: 首次使用隧道功能时，应用会自动检测并提示安装 cloudflared
-2. **创建隧道**: 在隧道页面，输入要暴露的本地端口，点击 "创建隧道" 按钮
-3. **访问公网**: 隧道创建成功后，会生成一个公网 URL，通过该 URL 可以访问本地服务
-4. **管理隧道**: 在隧道页面可以查看所有活动的隧道，支持停止或重新创建隧道
+#### 查看端口
+1. 打开应用程序
+2. 导航到"端口"页面
+3. 查看所有活动端口及其关联的进程
+4. 使用切换按钮在卡片视图和表格视图之间切换
 
-### Kubernetes 端口转发使用
-1. **配置 kubectl**: 确保本地已安装并配置好 kubectl
-2. **创建转发**: 在 Kubernetes 页面，输入集群信息和端口转发配置
-3. **监控状态**: 应用会显示转发状态，支持自动重连
+#### 终止进程
+1. 找到要终止的端口
+2. 点击端口旁边的"终止"按钮
+3. 在对话框中确认操作
+4. 进程将被优雅地终止
 
-## 常见问题
+#### 添加到收藏
+1. 将鼠标悬停在端口卡片或表格行上
+2. 点击星形图标添加/移除收藏
+3. 收藏的端口显示在列表顶部
 
-### 1. 为什么某些端口无法终止？
-- **原因**: 某些系统端口或受保护的进程可能需要管理员/root 权限才能终止
-- **解决方案**: 以管理员/root 权限运行应用
+#### 批量操作
+1. 使用复选框选择多个端口
+2. 使用批量操作按钮：
+   - 终止所有选中的进程
+   - 将所有添加到收藏
+   - 从收藏中移除所有
 
-### 2. Cloudflare 隧道创建失败怎么办？
-- **检查 cloudflared**: 确保 cloudflared 已正确安装
-- **检查网络**: 确保网络连接正常，cloudflared 需要访问 Cloudflare API
-- **检查端口**: 确保要转发的本地端口正在运行服务
+### Cloudflare 隧道
 
-### 3. 应用启动缓慢怎么办？
-- **调整刷新间隔**: 在设置中增加刷新间隔，减少扫描频率
-- **过滤端口**: 使用搜索功能过滤不需要的端口
+#### 创建隧道
+1. 导航到"隧道"页面
+2. 点击"创建隧道"按钮
+3. 输入端口号和隧道名称
+4. 点击"创建"启动隧道
+5. 连接后将显示隧道URL
 
-### 4. 如何随系统启动？
-- **macOS**: 在系统设置 → 用户与群组 → 登录项中添加 PortKiller
-- **Windows**: 在应用设置中启用 "随系统启动"
+#### 管理隧道
+- **停止隧道**: 点击停止按钮终止隧道
+- **重启隧道**: 点击重启按钮重启已停止的隧道
+- **查看详情**: 点击隧道查看详细信息
+- **自动刷新**: 隧道每5秒自动刷新
 
-## 技术架构
+#### Cloudflared 设置
+1. 从 [Cloudflare官网](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/) 下载并安装Cloudflared
+2. 应用程序将自动检测Cloudflared安装
+3. Cloudflared版本每5分钟检查一次，以避免性能影响
 
-PortKiller 采用现代化的技术栈构建：
+### 通知
 
-- **前端**: Blazor WebAssembly（跨平台 UI）
-- **后端**: .NET 10.0
-- **系统集成**: 原生 API 调用
-- **外部集成**: Cloudflare Tunnel API、Kubernetes API
+应用程序为以下情况提供通知：
+- 端口状态变化
+- 隧道连接/断开
+- Cloudflared版本更新
+- 错误消息和警告
 
-## 更新日志
+在通知面板中查看通知历史。
 
-### v1.0.0（最新版本）
-- ✨ 全新发布，支持 macOS 和 Windows 平台
-- 🚀 实现核心端口管理功能
-- 🌐 集成 Cloudflare 隧道
-- 🔗 支持 Kubernetes 端口转发
-- 🎨 原生 UI 设计
+## 技术栈
+
+### 核心技术
+- **.NET 10**: 用于跨平台开发的最新.NET框架
+- **Blazor Server**: 用于构建交互式Web UI的Web框架
+- **MASA Blazor**: Blazor的Material Design组件库
+- **Cloudflare Tunnel**: 用于暴露本地服务的安全隧道服务
+
+### 平台支持
+- **Windows**: 完全支持，原生UI
+- **macOS**: 完全支持，菜单栏集成
+- **Linux**: 完全支持，基于Web的UI
+- **Web**: 通过Blazor Server的跨平台支持
+
+## 配置
+
+### 设置位置
+- **Windows**: `%APPDATA%\PortKiller\settings.json`
+- **macOS**: `~/Library/Application Support/PortKiller/settings.json`
+- **Linux**: `~/.config/PortKiller/settings.json`
+
+### 可用设置
+- 端口扫描的刷新间隔
+- 通知首选项
+- 主题选择（深色/浅色）
+- 收藏的端口
+- 活动的隧道
+
+## 故障排除
+
+### 常见问题
+
+#### 端口未显示
+- 确保端口确实在监听（使用 `netstat` 或 `lsof` 验证）
+- 检查应用程序是否有足够的权限
+- 尝试手动刷新端口列表
+
+#### 无法终止进程
+- 确保应用程序以管理员/root权限运行
+- 某些系统进程可能需要提升的权限
+- 检查进程是否受操作系统保护
+
+#### 隧道无法启动
+- 验证Cloudflared是否正确安装
+- 检查Cloudflared是否在您的PATH中可访问
+- 确保端口未被占用
+- 检查应用程序日志中的错误消息
+
+#### 性能问题
+- 在设置中增加刷新间隔
+- 减少监控的端口数量
+- 关闭不必要的应用程序
+
+### 获取帮助
+
+如果您遇到任何问题或有疑问：
+
+1. **查看文档**: 阅读此README和内联帮助
+2. **搜索现有问题**: 在 [GitHub Issues](https://github.com/productdevbook/port-killer/issues) 中查找类似问题
+3. **联系支持**: 通过QQ联系科控物联: **2492123056**
+4. **创建问题**: 如果您发现了bug，请在GitHub上创建详细的问题
 
 ## 贡献
 
-我们欢迎社区贡献！请参阅 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发环境设置和贡献流程。
+我们欢迎社区贡献！请参阅 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发设置和指南。
 
-### 开发环境要求
-- .NET 10.0 SDK
-- Visual Studio 2022 或 Rider
-- macOS 或 Windows 开发机器
+### 开发设置
 
-## 赞助
+1. Fork 仓库
+2. 克隆您的fork
+3. 创建功能分支
+4. 进行更改
+5. 彻底测试
+6. 提交拉取请求
 
-如果您喜欢 PortKiller 并希望支持其发展，请考虑赞助我们：
+## 路线图
+
+- [ ] macOS和Linux原生应用程序
+- [ ] 高级筛选和排序选项
+- [ ] 端口使用统计和分析
+- [ ] 集成其他隧道服务
+- [ ] 插件系统以实现可扩展性
+- [ ] 多语言支持
+- [ ] 高级通知规则
+- [ ] 端口使用历史和趋势
+
+## 支持
+
+### 中文支持
+- **团队**: 科控物联
+- **QQ**: 2492123056
+- **反馈**: 欢迎通过QQ反馈问题和建议
+
+### 英文支持
+- **GitHub Issues**: [报告错误](https://github.com/productdevbook/port-killer/issues)
+- **GitHub Discussions**: [提问](https://github.com/productdevbook/port-killer/discussions)
+
+## 赞助者
 
 <p align="center">
   <a href="https://cdn.jsdelivr.net/gh/productdevbook/static/sponsors.svg">
@@ -166,11 +279,17 @@ PortKiller 采用现代化的技术栈构建：
 
 ## 许可证
 
-PortKiller 使用 MIT 许可证 - 请参阅 [LICENSE](LICENSE) 文件了解详情。
+MIT 许可证 - 请参阅 [LICENSE](LICENSE)。
 
-## 联系我们
+## 致谢
 
-- **QQ**: 2492123056
-- **GitHub Issues**: [https://github.com/productdevbook/port-killer/issues](https://github.com/productdevbook/port-killer/issues)
+- [productdevbook](https://github.com/productdevbook) 的原始PortKiller项目
+- Cloudflare提供的优秀隧道服务
+- MASA Blazor团队的优秀UI组件
+- PortKiller的所有贡献者和用户
 
-感谢您使用 PortKiller！如果您有任何建议或问题，欢迎随时联系我们。
+---
+
+**由科控物联用 ❤️ 开发**
+
+**中文用户支持：QQ 2492123056**
