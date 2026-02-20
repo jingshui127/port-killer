@@ -21,8 +21,14 @@
             <button class="home-btn" @onclick="@GoToHome" title="返回主页">
                 <span>🏠</span>
             </button>
+            <button class="nav-btn ports-btn" @onclick="@GoToPorts" title="端口管理">
+                <span>🔌</span>
+            </button>
             <button class="nav-btn tunnels-btn" @onclick="@GoToTunnels" title="隧道管理">
                 <span>🌐</span>
+            </button>
+            <button class="about-btn" @onclick="@GoToAbout" title="关于">
+                <span>ℹ</span>
             </button>
             <button class="theme-toggle" @onclick="@ToggleTheme" title="切换主题">
                 <span>@(ThemeService.IsDarkTheme ? "☀" : "🌙")</span>
@@ -434,7 +440,26 @@
         border-color: #454545;
         transform: scale(1.05);
     }
-    
+
+    .about-btn {
+        background: #252525;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 20px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .about-btn:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+        transform: scale(1.05);
+    }
+
     .theme-toggle {
         background: #252525;
         border: 1px solid #353535;
@@ -1324,7 +1349,18 @@
         background: #f8f9fa;
         border-color: #d0d0d0;
     }
-    
+
+    .container.light .about-btn {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        color: #333333;
+    }
+
+    .container.light .about-btn:hover {
+        background: #f8f9fa;
+        border-color: #d0d0d0;
+    }
+
     .container.light .theme-toggle {
         background: #ffffff;
         border: 1px solid #e0e0e0;
@@ -1823,7 +1859,15 @@
     {
         await LoadPortsFromCacheAsync();
         _notificationHistory = NotificationService.GetNotificationHistory();
-        await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ = JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
+        }
+        return base.OnAfterRenderAsync(firstRender);
     }
 
     private async Task LoadPortsFromCacheAsync()
@@ -2094,9 +2138,19 @@
         Navigation.NavigateTo("/");
     }
 
+    private void GoToPorts()
+    {
+        Navigation.NavigateTo("/ports");
+    }
+
     private void GoToTunnels()
     {
         Navigation.NavigateTo("/tunnels");
+    }
+
+    private void GoToAbout()
+    {
+        Navigation.NavigateTo("/about");
     }
 
     private void ShowNotificationHistory()

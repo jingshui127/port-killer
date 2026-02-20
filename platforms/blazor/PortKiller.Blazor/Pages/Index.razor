@@ -462,10 +462,15 @@
 </style>
 
 @code {
-    protected override async Task OnInitializedAsync()
+    private bool _isFirstRender = true;
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
     {
-        await base.OnInitializedAsync();
-        await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
+        if (firstRender)
+        {
+            _ = JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
+        }
+        return base.OnAfterRenderAsync(firstRender);
     }
 
     private void GoToPorts()
