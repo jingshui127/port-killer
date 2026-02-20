@@ -12,5 +12,5 @@ public class CloudflareTunnel
     public int ProcessId { get; set; }
     public string Uptime { get; set; } = string.Empty;
     public string TunnelName { get; set; } = string.Empty;
-    public bool IsActive => Status == "Active";
+    public bool IsActive => Status == "Active" && TunnelUrl != "Unknown";
 }

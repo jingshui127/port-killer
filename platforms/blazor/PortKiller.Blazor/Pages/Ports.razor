@@ -43,6 +43,24 @@
             <span class="icon">↻</span>
             <text>刷新</text>
         </button>
+        <button class="btn btn-secondary" @onclick="@ShowNotificationHistory" title="通知历史">
+            <span class="icon">🔔</span>
+            <text>通知历史</text>
+        </button>
+        @if (_selectedPorts.Count > 0)
+        {
+            <div class="batch-actions">
+                <span class="selected-count">已选择 @_selectedPorts.Count 个端口</span>
+                <button class="btn btn-danger" @onclick="@BatchKillPorts" title="批量终止">
+                    <span class="icon">✕</span>
+                    <text>终止选中</text>
+                </button>
+                <button class="btn btn-secondary" @onclick="@ClearSelection" title="清除选择">
+                    <span class="icon">✕</span>
+                    <text>清除选择</text>
+                </button>
+            </div>
+        }
         @if (_filteredPorts.Count > 0)
         {
             <div class="port-count">
@@ -95,65 +113,6 @@
     }
     else
     {
-        <div class="port-list">
-            @foreach (var port in _filteredPorts)
-            {
-                <div class="port-card @(port.IsActive ? "active" : "")">
-                    <div class="port-info">
-                        <div class="port-header">
-                            <div class="port-number">
-                                <span class="label">端口</span>
-                                <span class="value">@port.Port</span>
-                            </div>
-                            <div class="port-pid" title="PID: @port.Pid">
-                                <span class="icon">🔢</span>
-                                <span class="text">@port.Pid</span>
-                            </div>
-                        </div>
-                        <div class="port-details">
-                            <div class="detail-row">
-                                <div class="detail" title="@port.ProcessName">
-                                    <span class="icon">⚙</span>
-                                    <span class="text text-truncate">@port.ProcessName</span>
-                                </div>
-                                <div class="detail" title="@port.Address">
-                                    <span class="icon">📍</span>
-                                    <span class="text text-truncate">@port.Address</span>
-                                </div>
-                            </div>
-                            <div class="detail-row">
-                                <div class="detail" title="@port.Command">
-                                    <span class="icon">📁</span>
-                                    <span class="text">@port.Command</span>
-                                </div>
-                                <div class="detail" title="@port.User">
-                                    <span class="icon">👤</span>
-                                    <span class="text">@port.User</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="port-actions">
-                        <button class="btn-icon @(port.IsFavorite ? "favorite" : "")" @onclick="@(() => ToggleFavorite(port.Port))" title="收藏">
-                            <span>@(port.IsFavorite ? "★" : "☆")</span>
-                        </button>
-                        <button class="btn-icon @(port.IsWatched ? "watched" : "")" @onclick="@(() => ToggleWatch(port.Port))" title="监控">
-                            <span>@(port.IsWatched ? "👁" : "👁")</span>
-                        </button>
-                        <button class="btn-icon btn-tunnel" @onclick="@(() => CreateTunnelForPort(port.Port))" title="创建隧道">
-                            <span>🌐</span>
-                        </button>
-                        <button class="btn-icon btn-info" @onclick="@(() => ShowPortDetails(port))" title="查看详情">
-                            <span>ℹ</span>
-                        </button>
-                        <button class="btn-icon btn-danger" @onclick="@(() => KillPort(port.Port))" title="终止">
-                            <span>✕</span>
-                        </button>
-                    </div>
-                </div>
-            }
-        </div>
-        
         @if (_isTableView)
         {
             <div class="port-table-container">
@@ -161,27 +120,31 @@
                     <ItemColContent>
                         @if (context.Header.Value == nameof(PortInfo.Port))
                         {
-                            @context.Item.Port
+                            <div @onclick="@(() => ShowPortDetails(context.Item))">@context.Item.Port</div>
                         }
                         else if (context.Header.Value == nameof(PortInfo.ProcessName))
                         {
-                            @context.Item.ProcessName
+                            <div @onclick="@(() => ShowPortDetails(context.Item))">@context.Item.ProcessName</div>
+                        }
+                        else if (context.Header.Value == nameof(PortInfo.Command))
+                        {
+                            <div @onclick="@(() => ShowPortDetails(context.Item))">@context.Item.Command</div>
                         }
                         else if (context.Header.Value == nameof(PortInfo.Address))
                         {
-                            @context.Item.Address
+                            <div @onclick="@(() => ShowPortDetails(context.Item))">@context.Item.Address</div>
                         }
                         else if (context.Header.Value == nameof(PortInfo.User))
                         {
-                            @context.Item.User
+                            <div @onclick="@(() => ShowPortDetails(context.Item))">@context.Item.User</div>
                         }
                         else if (context.Header.Value == nameof(PortInfo.Pid))
                         {
-                            @context.Item.Pid
+                            <div @onclick="@(() => ShowPortDetails(context.Item))">@context.Item.Pid</div>
                         }
                         else if (context.Header.Value == "Actions")
                         {
-                            <div class="table-actions">
+                            <div class="table-actions" @onclick:stopPropagation>
                                 <button class="btn-icon @(context.Item.IsFavorite ? "favorite" : "")" @onclick="@(() => ToggleFavorite(context.Item.Port))" title="收藏">
                                     <span>@(context.Item.IsFavorite ? "★" : "☆")</span>
                                 </button>
@@ -201,6 +164,70 @@
                         }
                     </ItemColContent>
                 </MDataTable>
+            </div>
+        }
+        else
+        {
+            <div class="port-list">
+                @foreach (var port in _filteredPorts)
+                {
+                    <div class="port-card @(port.IsActive ? "active" : "") @(_selectedPorts.Contains(port.Port) ? "selected" : "")">
+                        <div class="port-checkbox">
+                            <input type="checkbox" checked="@(_selectedPorts.Contains(port.Port))" @onchange="@((e) => TogglePortSelection(port.Port, e.Value))" />
+                        </div>
+                        <div class="port-info">
+                            <div class="port-header">
+                                <div class="port-number">
+                                    <span class="label">端口</span>
+                                    <span class="value">@port.Port</span>
+                                </div>
+                                <div class="port-pid" title="PID: @port.Pid">
+                                    <span class="icon">🔢</span>
+                                    <span class="text">@port.Pid</span>
+                                </div>
+                            </div>
+                            <div class="port-details">
+                                <div class="detail-row">
+                                    <div class="detail" title="@port.ProcessName">
+                                        <span class="icon">⚙</span>
+                                        <span class="text text-truncate">@port.ProcessName</span>
+                                    </div>
+                                    <div class="detail" title="@port.Command">
+                                        <span class="icon">📁</span>
+                                        <span class="text text-truncate">@port.Command</span>
+                                    </div>
+                                </div>
+                                <div class="detail-row">
+                                    <div class="detail" title="@port.Address">
+                                        <span class="icon">📍</span>
+                                        <span class="text text-truncate">@port.Address</span>
+                                    </div>
+                                    <div class="detail" title="@port.User">
+                                        <span class="icon">👤</span>
+                                        <span class="text">@port.User</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="port-actions">
+                            <button class="btn-icon @(port.IsFavorite ? "favorite" : "")" @onclick="@(() => ToggleFavorite(port.Port))" title="收藏">
+                                <span>@(port.IsFavorite ? "★" : "☆")</span>
+                            </button>
+                            <button class="btn-icon @(port.IsWatched ? "watched" : "")" @onclick="@(() => ToggleWatch(port.Port))" title="监控">
+                                <span>@(port.IsWatched ? "👁" : "👁")</span>
+                            </button>
+                            <button class="btn-icon btn-tunnel" @onclick="@(() => CreateTunnelForPort(port.Port))" title="创建隧道">
+                                <span>🌐</span>
+                            </button>
+                            <button class="btn-icon btn-info" @onclick="@(() => ShowPortDetails(port))" title="查看详情">
+                                <span>ℹ</span>
+                            </button>
+                            <button class="btn-icon btn-danger" @onclick="@(() => KillPort(port.Port))" title="终止">
+                                <span>✕</span>
+                            </button>
+                        </div>
+                    </div>
+                }
             </div>
         }
     }
@@ -258,6 +285,52 @@
                 </button>
                 <button class="btn btn-danger" @onclick="@(() => { var port = _selectedPort.Port; ClosePortDetailsModal(); KillPort(port); })">
                     <span class="icon">✕</span> 终止进程
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showNotificationHistoryModal)
+{
+    <div class="modal-overlay" @onclick="CloseNotificationHistoryModal">
+        <div class="modal-content notification-history-modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>通知历史</h2>
+                <button class="modal-close" @onclick="CloseNotificationHistoryModal">✕</button>
+            </div>
+            <div class="modal-body">
+                @if (_notificationHistory.Count == 0)
+                {
+                    <div class="empty-history">
+                        <span class="empty-icon">📭</span>
+                        <p>暂无通知历史</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="notification-history-list">
+                        @foreach (var notification in _notificationHistory)
+                        {
+                            <div class="notification-history-item @notification.Type">
+                                <div class="notification-history-header">
+                                    <span class="notification-history-icon">@notification.Icon</span>
+                                    <span class="notification-history-message">@notification.Message</span>
+                                    <span class="notification-history-time">@notification.Timestamp.ToString("HH:mm:ss")</span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(notification.Details))
+                                {
+                                    <div class="notification-history-details">@notification.Details</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="@ClearNotificationHistory">
+                    <span class="icon">🗑</span>
+                    <text>清除历史</text>
                 </button>
             </div>
         </div>
@@ -567,6 +640,52 @@
         border-left: 4px solid #2ecc71;
     }
     
+    .port-card.selected {
+        border: 2px solid #667eea;
+        box-shadow: 0 0 16px rgba(102, 126, 234, 0.3);
+    }
+    
+    .port-checkbox {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 10;
+    }
+    
+    .port-checkbox input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        accent-color: #667eea;
+    }
+    
+    .batch-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #2a2a2a;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 1px solid #667eea;
+    }
+    
+    .selected-count {
+        color: #e0e0e0;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    
+    .btn-secondary {
+        background: #555555;
+        color: white;
+    }
+    
+    .btn-secondary:hover:not(:disabled) {
+        background: #666666;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(85, 85, 85, 0.4);
+    }
+    
     .port-info {
         margin-bottom: 16px;
     }
@@ -761,28 +880,143 @@
     
     .port-table .v-data-table__tbody tr {
         border-bottom: 1px solid #353535;
+        transition: all 0.3s ease;
     }
     
     .port-table .v-data-table__tbody tr:hover {
         background: #333333;
+        transform: translateY(-1px);
     }
     
     .port-table .v-data-table__tbody td {
         color: #e0e0e0;
         font-size: 14px;
         padding: 12px 16px;
+        vertical-align: middle;
+        border-right: 1px solid #353535;
+    }
+    
+    .port-table .v-data-table__tbody td:last-child {
+        border-right: none;
+    }
+    
+    .port-table .v-data-table__tbody td div {
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+    }
+    
+    .port-table .v-data-table__tbody td div:hover {
+        background: rgba(102, 126, 234, 0.1);
+        color: #667eea;
+        transform: translateX(2px);
     }
     
     .table-actions {
         display: flex;
-        gap: 6px;
+        gap: 8px;
         align-items: center;
+        justify-content: center;
+        padding: 4px;
     }
     
     .table-actions .btn-icon {
-        width: 32px;
-        height: 32px;
-        font-size: 16px;
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .table-actions .btn-icon:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    .table-actions .btn-icon.favorite {
+        color: #f1c40f;
+    }
+    
+    .table-actions .btn-icon.watched {
+        color: #3498db;
+    }
+    
+    .table-actions .btn-icon.btn-tunnel:hover {
+        background: rgba(46, 204, 113, 0.2);
+        color: #2ecc71;
+    }
+    
+    .table-actions .btn-icon.btn-info:hover {
+        background: rgba(52, 152, 219, 0.2);
+        color: #3498db;
+    }
+    
+    .table-actions .btn-icon.btn-danger:hover {
+        background: rgba(231, 76, 60, 0.2);
+        color: #e74c3c;
+    }
+    
+    .port-table .v-data-table__header {
+        background: #2a2a2a !important;
+        border-bottom: 2px solid #667eea !important;
+    }
+    
+    .port-table .v-data-table__header th {
+        color: #e0e0e0 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        padding: 14px 16px !important;
+        border-right: 1px solid #353535 !important;
+    }
+    
+    .port-table .v-data-table__header th:last-child {
+        border-right: none !important;
+    }
+    
+    .port-table-container {
+        background: #252525;
+        border-radius: 12px;
+        border: 1px solid #353535;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .port-table {
+        border-radius: 12px !important;
+        overflow: hidden !important;
+    }
+    
+    .port-table .v-data-table__footer {
+        background: #2a2a2a !important;
+        border-top: 1px solid #353535 !important;
+        display: flex !important;
+        padding: 12px 16px !important;
+    }
+    
+    .port-table .v-data-table__footer * {
+        color: #e0e0e0 !important;
+    }
+    
+    .port-table .v-data-table__footer .v-pagination button {
+        color: #e0e0e0 !important;
+        background: #353535 !important;
+        border-radius: 6px !important;
+        margin: 0 4px !important;
+    }
+    
+    .port-table .v-data-table__footer .v-pagination button:hover {
+        background: #667eea !important;
+    }
+    
+    .port-table .v-data-table__footer .v-pagination button.v-pagination__item--active {
+        background: #667eea !important;
+        color: #ffffff !important;
     }
     
     .search-box {
@@ -1038,6 +1272,91 @@
         background: #f5f5f5;
         color: #333333;
     }
+    
+    .notification-history-modal {
+        width: 600px !important;
+        max-width: 600px !important;
+        max-height: 70vh !important;
+    }
+    
+    .empty-history {
+        text-align: center;
+        padding: 40px 20px;
+        color: #808080;
+    }
+    
+    .empty-history .empty-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+        opacity: 0.5;
+    }
+    
+    .notification-history-list {
+        max-height: 400px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .notification-history-item {
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #353535;
+        background: #252525;
+        transition: all 0.2s ease;
+    }
+    
+    .notification-history-item:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+    }
+    
+    .notification-history-item.success {
+        border-left: 3px solid #2ecc71;
+    }
+    
+    .notification-history-item.error {
+        border-left: 3px solid #e74c3c;
+    }
+    
+    .notification-history-item.warning {
+        border-left: 3px solid #f39c12;
+    }
+    
+    .notification-history-item.info {
+        border-left: 3px solid #3498db;
+    }
+    
+    .notification-history-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+    }
+    
+    .notification-history-icon {
+        font-size: 18px;
+    }
+    
+    .notification-history-message {
+        flex: 1;
+        font-size: 14px;
+        font-weight: 500;
+        color: #e0e0e0;
+    }
+    
+    .notification-history-time {
+        font-size: 12px;
+        color: #808080;
+    }
+    
+    .notification-history-details {
+        font-size: 13px;
+        color: #a0a0a0;
+        padding-left: 26px;
+        word-break: break-all;
+    }
 </style>
 
 @code {
@@ -1045,11 +1364,12 @@
     private List<PortInfo> _filteredPorts = new();
     private List<DataTableHeader<PortInfo>> _tableHeaders = new()
     {
-        new() { Text = "端口", Value = nameof(PortInfo.Port), Width = "80px" },
-        new() { Text = "进程名", Value = nameof(PortInfo.ProcessName), Width = "150px" },
-        new() { Text = "地址", Value = nameof(PortInfo.Address) },
-        new() { Text = "用户", Value = nameof(PortInfo.User), Width = "100px" },
-        new() { Text = "PID", Value = nameof(PortInfo.Pid), Width = "80px" },
+        new() { Text = "端口", Value = nameof(PortInfo.Port), Width = "80px", Sortable = true },
+        new() { Text = "进程名", Value = nameof(PortInfo.ProcessName), Width = "150px", Sortable = true },
+        new() { Text = "目录", Value = nameof(PortInfo.Command), Sortable = true },
+        new() { Text = "地址", Value = nameof(PortInfo.Address), Width = "120px", Sortable = true },
+        new() { Text = "用户", Value = nameof(PortInfo.User), Width = "100px", Sortable = true },
+        new() { Text = "PID", Value = nameof(PortInfo.Pid), Width = "80px", Sortable = true },
         new() { Text = "操作", Value = "Actions", Width = "200px", Sortable = false }
     };
     private bool _isLoading = false;
@@ -1063,10 +1383,16 @@
     private string _notificationType = string.Empty;
     private string _notificationIcon = string.Empty;
     private bool _isTableView = false;
+    private string _sortBy = nameof(PortInfo.Port);
+    private bool _sortDesc = false;
+    private HashSet<int> _selectedPorts = new();
+    private bool _showNotificationHistoryModal = false;
+    private List<Notification> _notificationHistory = new();
 
     protected override async Task OnInitializedAsync()
     {
         await LoadPortsFromCacheAsync();
+        _notificationHistory = NotificationService.GetNotificationHistory();
     }
 
     private async Task LoadPortsFromCacheAsync()
@@ -1182,6 +1508,16 @@
                 p.ProcessName.ToLower().Contains(searchLower) ||
                 p.Address.ToLower().Contains(searchLower)).ToList();
         }
+
+        _filteredPorts = _sortBy switch
+        {
+            nameof(PortInfo.Port) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.Port).ToList() : _filteredPorts.OrderBy(p => p.Port).ToList(),
+            nameof(PortInfo.ProcessName) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.ProcessName).ToList() : _filteredPorts.OrderBy(p => p.ProcessName).ToList(),
+            nameof(PortInfo.Address) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.Address).ToList() : _filteredPorts.OrderBy(p => p.Address).ToList(),
+            nameof(PortInfo.User) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.User).ToList() : _filteredPorts.OrderBy(p => p.User).ToList(),
+            nameof(PortInfo.Pid) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.Pid).ToList() : _filteredPorts.OrderBy(p => p.Pid).ToList(),
+            _ => _filteredPorts
+        };
     }
 
     private void ToggleFilter(string filter)
@@ -1207,6 +1543,62 @@
     private void ToggleView()
     {
         _isTableView = !_isTableView;
+        StateHasChanged();
+    }
+
+    private void ToggleSort(string sortBy)
+    {
+        if (_sortBy == sortBy)
+        {
+            _sortDesc = !_sortDesc;
+        }
+        else
+        {
+            _sortBy = sortBy;
+            _sortDesc = false;
+        }
+        FilterPorts();
+    }
+
+    private void TogglePortSelection(int port, object? isChecked)
+    {
+        if (isChecked is bool selected)
+        {
+            if (selected)
+            {
+                _selectedPorts.Add(port);
+            }
+            else
+            {
+                _selectedPorts.Remove(port);
+            }
+        }
+    }
+
+    private void ClearSelection()
+    {
+        _selectedPorts.Clear();
+    }
+
+    private async Task BatchKillPorts()
+    {
+        if (_selectedPorts.Count == 0) return;
+
+        try
+        {
+            foreach (var port in _selectedPorts.ToList())
+            {
+                PortScanner.KillPort(port);
+            }
+            await LoadPortsAsync();
+            ShowNotification($"已终止 {_selectedPorts.Count} 个端口", "success");
+            _selectedPorts.Clear();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error batch killing ports");
+            ShowNotification($"批量终止失败: {ex.Message}", "error");
+        }
     }
 
     private void ShowPortDetails(PortInfo port)
@@ -1273,5 +1665,25 @@
     private void GoToTunnels()
     {
         Navigation.NavigateTo("/tunnels");
+    }
+
+    private void ShowNotificationHistory()
+    {
+        _notificationHistory = NotificationService.GetNotificationHistory();
+        _showNotificationHistoryModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseNotificationHistoryModal()
+    {
+        _showNotificationHistoryModal = false;
+        StateHasChanged();
+    }
+
+    private void ClearNotificationHistory()
+    {
+        NotificationService.ClearHistory();
+        _notificationHistory.Clear();
+        ShowNotification("通知历史已清除", "success");
     }
 }

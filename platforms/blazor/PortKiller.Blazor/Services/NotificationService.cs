@@ -5,6 +5,8 @@ namespace PortKiller.Blazor.Services;
 public class NotificationService
 {
     private readonly ConcurrentQueue<Notification> _notifications = new();
+    private readonly List<Notification> _notificationHistory = new();
+    private const int MaxHistorySize = 100;
 
     public void NotifyPortStarted(int port, string processName)
     {
@@ -73,7 +75,24 @@ public class NotificationService
     private void AddNotification(Notification notification)
     {
         _notifications.Enqueue(notification);
+        _notificationHistory.Insert(0, notification);
+        
+        if (_notificationHistory.Count > MaxHistorySize)
+        {
+            _notificationHistory.RemoveAt(_notificationHistory.Count - 1);
+        }
+        
         OnNotificationAdded?.Invoke(notification);
+    }
+
+    public List<Notification> GetNotificationHistory()
+    {
+        return _notificationHistory.ToList();
+    }
+
+    public void ClearHistory()
+    {
+        _notificationHistory.Clear();
     }
 
     public event Action<Notification>? OnNotificationAdded;

@@ -16,6 +16,8 @@ public class TunnelService
     private readonly ConcurrentDictionary<int, string> _tunnelErrors = new();
     private readonly ILogger<TunnelService>? _logger;
     private readonly SettingsService _settingsService;
+    private CloudflaredStatus? _cachedCloudflaredStatus;
+    private DateTime _lastCloudflaredCheck = DateTime.MinValue;
 
     public event EventHandler<CloudflaredUpdateProgress>? UpdateProgressChanged;
 
@@ -53,8 +55,6 @@ public class TunnelService
 
     public async Task InitializeAsync()
     {
-        await CleanupOrphanedTunnelsAsync();
-        
         var savedTunnels = _settingsService.GetActiveTunnels();
         
         foreach (var savedTunnel in savedTunnels)
@@ -81,6 +81,8 @@ public class TunnelService
                 _ = RestartTunnelOnStartupAsync(savedTunnel);
             }
         }
+        
+        _ = CleanupOrphanedTunnelsAsync();
     }
 
     private async Task RestartTunnelOnStartupAsync(CloudflareTunnel savedTunnel)
@@ -190,6 +192,9 @@ public class TunnelService
         }
         
         var allCloudflaredProcesses = Process.GetProcessesByName("cloudflared");
+        Process? foundProcess = null;
+        var processesToDispose = new List<Process>();
+        
         foreach (var process in allCloudflaredProcesses)
         {
             try
@@ -197,15 +202,31 @@ public class TunnelService
                 var commandLine = GetProcessCommandLine(process.Id);
                 if (commandLine != null && commandLine.Contains($"--url localhost:{port}"))
                 {
-                    return process;
+                    foundProcess = process;
                 }
+                else
+                {
+                    processesToDispose.Add(process);
+                }
+            }
+            catch
+            {
+                processesToDispose.Add(process);
+            }
+        }
+        
+        foreach (var p in processesToDispose)
+        {
+            try
+            {
+                p.Dispose();
             }
             catch
             {
             }
         }
         
-        return null;
+        return foundProcess;
     }
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
@@ -542,18 +563,170 @@ public class TunnelService
         {
             if (_tunnelProcesses.TryGetValue(tunnel.Port, out var process))
             {
-                if (process.HasExited)
+                try
+                {
+                    if (process.HasExited)
+                    {
+                        tunnel.Status = "Stopped";
+                        tunnel.LastError = "Process exited unexpectedly";
+                    }
+                    else
+                    {
+                        var uptime = DateTime.Now - tunnel.StartTime;
+                        tunnel.Uptime = FormatUptime(uptime);
+                    }
+                }
+                catch (InvalidOperationException)
                 {
                     tunnel.Status = "Stopped";
-                    tunnel.LastError = "Process exited unexpectedly";
-                }
-                else
-                {
-                    var uptime = DateTime.Now - tunnel.StartTime;
-                    tunnel.Uptime = FormatUptime(uptime);
+                    tunnel.LastError = "Process no longer available";
                 }
             }
         }
+    }
+
+    public async Task<List<CloudflareTunnel>> ScanTunnelsAsync()
+    {
+        var scannedTunnels = new List<CloudflareTunnel>();
+        
+        await Task.Run(() =>
+        {
+            try
+            {
+                var processes = Process.GetProcessesByName("cloudflared");
+                var processesToDispose = new List<Process>();
+                
+                foreach (var process in processes)
+                {
+                    bool shouldDispose = true;
+                    try
+                    {
+                        if (OperatingSystem.IsWindows())
+                        {
+                            var commandLine = GetProcessCommandLine(process.Id);
+                            if (commandLine != null && commandLine.Contains("--url"))
+                            {
+                                var match = Regex.Match(commandLine, @"--url\s+localhost:(\d+)");
+                                if (match.Success && int.TryParse(match.Groups[1].Value, out int port))
+                                {
+                                    var existingTunnel = _tunnels.Values.FirstOrDefault(t => t.Port == port);
+                                    
+                                    if (existingTunnel == null)
+                                    {
+                                        var startTime = DateTime.Now;
+                                        try
+                                        {
+                                            startTime = process.StartTime;
+                                        }
+                                        catch
+                                        {
+                                        }
+                                        
+                                        var newTunnel = new CloudflareTunnel
+                                        {
+                                            Port = port,
+                                            TunnelName = $"Tunnel-{port}",
+                                            Status = process.HasExited ? "Stopped" : "Active",
+                                            ProcessId = process.Id,
+                                            StartTime = startTime,
+                                            Uptime = FormatUptime(DateTime.Now - startTime),
+                                            TunnelUrl = _tunnelUrls.ContainsKey(port) ? _tunnelUrls[port] : "Unknown"
+                                        };
+                                        
+                                        _tunnels[port] = newTunnel;
+                                        _tunnelProcesses[port] = process;
+                                        scannedTunnels.Add(newTunnel);
+                                        shouldDispose = false;
+                                        
+                                        // 为现有进程开始读取输出以捕获URL
+                                        try
+                                        {
+                                            process.OutputDataReceived += (sender, e) =>
+                                            {
+                                                if (!string.IsNullOrEmpty(e.Data))
+                                                {
+                                                    ParseOutput(port, e.Data);
+                                                }
+                                            };
+                                            process.ErrorDataReceived += (sender, e) =>
+                                            {
+                                                if (!string.IsNullOrEmpty(e.Data))
+                                                {
+                                                    ParseOutput(port, e.Data);
+                                                }
+                                            };
+                                            process.BeginOutputReadLine();
+                                            process.BeginErrorReadLine();
+                                        }
+                                        catch
+                                        {
+                                        }
+                                    }
+                                    else
+                                    {
+                                        existingTunnel.ProcessId = process.Id;
+                                        existingTunnel.Status = process.HasExited ? "Stopped" : "Active";
+                                        existingTunnel.Uptime = FormatUptime(DateTime.Now - existingTunnel.StartTime);
+                                        shouldDispose = false;
+                                        
+                                        // 为现有进程开始读取输出以捕获URL
+                                        try
+                                        {
+                                            process.OutputDataReceived += (sender, e) =>
+                                            {
+                                                if (!string.IsNullOrEmpty(e.Data))
+                                                {
+                                                    ParseOutput(port, e.Data);
+                                                }
+                                            };
+                                            process.ErrorDataReceived += (sender, e) =>
+                                            {
+                                                if (!string.IsNullOrEmpty(e.Data))
+                                                {
+                                                    ParseOutput(port, e.Data);
+                                                }
+                                            };
+                                            process.BeginOutputReadLine();
+                                            process.BeginErrorReadLine();
+                                        }
+                                        catch
+                                        {
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                    finally
+                    {
+                        if (shouldDispose)
+                        {
+                            processesToDispose.Add(process);
+                        }
+                    }
+                }
+                
+                foreach (var p in processesToDispose)
+                {
+                    try
+                    {
+                        p.Dispose();
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Error scanning tunnels: {ex.Message}");
+            }
+        });
+        
+        return scannedTunnels;
     }
 
     private string FormatUptime(TimeSpan uptime)
@@ -694,6 +867,13 @@ public class TunnelService
 
     public async Task<CloudflaredStatus> GetCloudflaredStatusWithUpdateCheckAsync()
     {
+        var now = DateTime.Now;
+        
+        if (_cachedCloudflaredStatus != null && (now - _lastCloudflaredCheck).TotalMinutes < 5)
+        {
+            return _cachedCloudflaredStatus;
+        }
+        
         var isInstalled = IsCloudflaredInstalled();
         var currentVersion = GetCloudflaredVersion();
         var latestVersion = await GetLatestCloudflaredVersionAsync();
@@ -706,13 +886,17 @@ public class TunnelService
             hasUpdate = latestVer > currentVer;
         }
 
-        return new CloudflaredStatus
+        _cachedCloudflaredStatus = new CloudflaredStatus
         {
             IsInstalled = isInstalled,
             Version = currentVersion,
             LatestVersion = latestVersion,
             HasUpdate = hasUpdate
         };
+        
+        _lastCloudflaredCheck = now;
+        
+        return _cachedCloudflaredStatus;
     }
 
     private Version ParseVersion(string versionString)
@@ -894,6 +1078,11 @@ public class TunnelService
             ReportProgress("error", ex.Message, 0, true, true);
             throw;
         }
+        finally
+        {
+            _cachedCloudflaredStatus = null;
+            _lastCloudflaredCheck = DateTime.MinValue;
+        }
     }
 
     private void ParseOutput(int port, string line)
@@ -961,10 +1150,6 @@ public class TunnelService
                         }
                         catch
                         {
-                        }
-                        finally
-                        {
-                            process.Dispose();
                         }
                     }
                 }

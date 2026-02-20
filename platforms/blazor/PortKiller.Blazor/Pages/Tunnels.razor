@@ -2,6 +2,7 @@
 @using PortKiller.Blazor.Services
 @using PortKiller.Blazor.Models
 @using Microsoft.Extensions.Logging
+@using System.Threading.Tasks
 @inject TunnelService TunnelService
 @inject NavigationManager Navigation
 @inject ThemeService ThemeService
@@ -90,6 +91,40 @@
             </div>
         </div>
 
+        @if (_tunnels.Count > 0)
+        {
+            <div class="tunnel-stats">
+                <div class="stat-item">
+                    <span class="stat-icon">📊</span>
+                    <div class="stat-content">
+                        <span class="stat-label">隧道总数</span>
+                        <span class="stat-value">@_tunnels.Count</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">✅</span>
+                    <div class="stat-content">
+                        <span class="stat-label">活动隧道</span>
+                        <span class="stat-value">@_tunnels.Count(t => t.IsActive)</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">⏳</span>
+                    <div class="stat-content">
+                        <span class="stat-label">未知</span>
+                        <span class="stat-value">@_tunnels.Count(t => t.Status == "Active" && t.TunnelUrl == "Unknown")</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">❌</span>
+                    <div class="stat-content">
+                        <span class="stat-label">停止中</span>
+                        <span class="stat-value">@_tunnels.Count(t => t.Status == "Stopping")</span>
+                    </div>
+                </div>
+            </div>
+        }
+
         @if (_tunnels.Count == 0)
         {
             <div class="empty">
@@ -111,8 +146,8 @@
                                     <span class="value">@tunnel.Port</span>
                                 </div>
                                 <div class="tunnel-status @(tunnel.IsActive ? "status-active" : "status-inactive")" title="@(tunnel.IsActive ? "隧道正在运行中" : "隧道已停止或未启动")">
-                                    @tunnel.Status
-                                </div>
+                    @(tunnel.Status == "Active" && tunnel.TunnelUrl == "Unknown" ? "Unknown" : tunnel.Status)
+                </div>
                             </div>
                             <div class="tunnel-url">
                                 <span class="label">URL:</span>
@@ -323,6 +358,57 @@
     .tunnel-actions {
         display: flex;
         gap: 12px;
+    }
+    
+    .tunnel-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        padding: 20px;
+        background: #2a2a2a;
+        border-radius: 12px;
+        border: 1px solid #353535;
+    }
+    
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: #252525;
+        border-radius: 8px;
+        border: 1px solid #353535;
+        transition: all 0.3s ease;
+    }
+    
+    .stat-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        border-color: #667eea;
+    }
+    
+    .stat-icon {
+        font-size: 32px;
+        opacity: 0.8;
+    }
+    
+    .stat-content {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .stat-label {
+        font-size: 12px;
+        color: #a0a0a0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: #e0e0e0;
     }
     
     .cloudflared-status {
@@ -872,11 +958,27 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await TunnelService.InitializeAsync();
-        await CheckCloudflaredStatus();
-        await LoadTunnelsAsync();
         _isInitialized = true;
         _tunnelTimer = new System.Threading.Timer(_ => UpdateTunnelStatus(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5));
+        
+        _ = Task.Run(async () => 
+        {
+            await TunnelService.InitializeAsync();
+            await LoadTunnelsAsync();
+            await InvokeAsync(() => StateHasChanged());
+        });
+        
+        _ = Task.Run(async () => 
+        {
+            await ScanTunnelsAsync();
+            await InvokeAsync(() => StateHasChanged());
+        });
+        
+        _ = Task.Run(async () => 
+        {
+            await CheckCloudflaredStatus();
+            await InvokeAsync(() => StateHasChanged());
+        });
     }
 
     public void Dispose()
@@ -908,6 +1010,22 @@
         {
             Logger.LogError(ex, "Error refreshing tunnels");
             ShowNotification("刷新隧道失败", "error");
+        }
+    }
+
+    private async Task ScanTunnelsAsync()
+    {
+        try
+        {
+            var scannedTunnels = await TunnelService.ScanTunnelsAsync();
+            if (scannedTunnels.Count > 0)
+            {
+                _tunnels = TunnelService.GetTunnels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error scanning tunnels");
         }
     }
 
@@ -1007,6 +1125,7 @@
         try
         {
             var newVersion = await TunnelService.UpdateCloudflaredAsync();
+            _cloudflaredStatus = null;
             await CheckCloudflaredStatus();
             ShowNotification($"Cloudflared 已升级到 {newVersion}", "success");
         }
