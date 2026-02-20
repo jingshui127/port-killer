@@ -1,38 +1,32 @@
+using Masa.Blazor;
+
 namespace PortKiller.Blazor.Services;
 
 public class ThemeService
 {
-    private string _currentTheme = "dark";
+    private readonly MasaBlazor _masaBlazor;
+
     public event Action? OnThemeChanged;
 
-    public string CurrentTheme
-    {
-        get => _currentTheme;
-        private set
-        {
-            if (_currentTheme != value)
-            {
-                _currentTheme = value;
-                OnThemeChanged?.Invoke();
-            }
-        }
-    }
+    public bool IsDarkTheme => _masaBlazor.Theme.DefaultTheme == "dark";
+    
+    public string CurrentTheme => IsDarkTheme ? "dark" : "light";
 
-    public void SetTheme(string theme)
+    public ThemeService(MasaBlazor masaBlazor)
     {
-        CurrentTheme = theme;
+        _masaBlazor = masaBlazor;
     }
 
     public void ToggleTheme()
     {
-        CurrentTheme = CurrentTheme == "dark" ? "light" : "dark";
+        var newTheme = IsDarkTheme ? "light" : "dark";
+        _masaBlazor.SetTheme(newTheme);
+        OnThemeChanged?.Invoke();
     }
 
-    public bool IsDarkTheme => CurrentTheme == "dark";
-    public bool IsLightTheme => CurrentTheme == "light";
-    
-    public string GetMasaThemeClass()
+    public void SetTheme(string theme)
     {
-        return CurrentTheme == "dark" ? "theme--dark" : "theme--light";
+        _masaBlazor.SetTheme(theme);
+        OnThemeChanged?.Invoke();
     }
 }

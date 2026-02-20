@@ -9,470 +9,248 @@
 
 <PageTitle>PortManager</PageTitle>
 
-<div class="container @ThemeService.CurrentTheme">
-    <header class="header">
-        <h1>PortManager</h1>
-        <p class="subtitle">端口管理器</p>
-        <div class="header-actions">
-            <button class="nav-btn ports-btn" @onclick="@GoToPorts" title="端口管理">
-                <span>🔌</span>
-            </button>
-            <button class="nav-btn tunnels-btn" @onclick="@GoToTunnels" title="隧道管理">
-                <span>🌐</span>
-            </button>
-            <button class="about-btn" @onclick="@GoToAbout" title="关于">
-                <span>ℹ</span>
-            </button>
-            <button class="theme-toggle" @onclick="@ToggleTheme" title="切换主题">
-                <span>@(ThemeService.IsDarkTheme ? "☀" : "🌙")</span>
-            </button>
-        </div>
-    </header>
+<NavigationMenu />
 
-    <div class="cards-container">
-        <div class="card" @onclick="@GoToPorts">
-            <div class="card-icon">🔌</div>
-            <h2 class="card-title">端口管理</h2>
-            <p class="card-description">查看和管理系统端口，支持过滤、收藏和监控</p>
-            <div class="card-features">
-                <span class="feature">✓ 扫描端口</span>
-                <span class="feature">✓ 终止进程</span>
-                <span class="feature">✓ 收藏端口</span>
-                <span class="feature">✓ 监控端口</span>
-            </div>
-        </div>
-
-        <div class="card" @onclick="@GoToTunnels">
-            <div class="card-icon">🌐</div>
-            <h2 class="card-title">隧道管理</h2>
-            <p class="card-description">创建和管理Cloudflare隧道，一键发布至公网</p>
-            <div class="card-features">
-                <span class="feature">✓ 创建隧道</span>
-                <span class="feature">✓ 停止隧道</span>
-                <span class="feature">✓ 重启隧道</span>
-                <span class="feature">✓ 复制URL</span>
-            </div>
-        </div>
-    </div>
-
-    <div class="info-section">
-        <h3>关于 PortManager</h3>
-        <p>PortManager 是一个功能强大的端口管理工具，帮助您轻松管理系统端口和创建Cloudflare隧道。</p>
-        <div class="info-features">
-            <div class="info-feature">
-                <span class="info-feature-icon">⚡</span>
-                <div class="info-feature-text">
-                    <h4>快速扫描</h4>
-                    <p>快速扫描系统所有活动端口</p>
+<MContainer Class="pt-4">
+    <!-- 标题区域 -->
+    <MRow Dense Class="mb-6">
+        <MCol Cols="12">
+            <div class="text-center">
+                <div class="d-inline-flex align-center justify-center rounded-circle mb-3" style="width: 80px; height: 80px; background: var(--m-primary-color-4);">
+                    <MIcon Size="48" Color="primary">mdi-lan-connect</MIcon>
                 </div>
+                <h1 class="text-h3 font-weight-bold mb-2">PortManager</h1>
+                <p class="text-body1 text--secondary">功能强大的端口管理工具</p>
             </div>
-            <div class="info-feature">
-                <span class="info-feature-icon">🔒</span>
-                <div class="info-feature-text">
-                    <h4>安全可靠</h4>
-                    <p>本地运行，数据安全有保障</p>
-                </div>
-            </div>
-            <div class="info-feature">
-                <span class="info-feature-icon">🌐</span>
-                <div class="info-feature-text">
-                    <h4>一键发布</h4>
-                    <p>快速创建隧道，发布至公网</p>
-                </div>
-            </div>
-        </div>
-        <div class="developer-info">
-            <h4>开发者信息</h4>
-            <p>由 <strong>科控物联</strong> 开发</p>
-            <p>QQ: <a href="tencent://message/?uin=2492123056" class="contact-link">2492123056</a></p>
-        </div>
-    </div>
-</div>
+        </MCol>
+    </MRow>
 
-<style>
-    body {
-        margin: 0;
-        padding: 0;
-        background: #1e1e1e;
-        color: #e0e0e0;
-    }
-    
-    body.light {
-        background: #f5f5f5;
-        color: #333333;
-    }
-    
-    .container {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 16px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background: #1e1e1e;
-        color: #e0e0e0;
-        min-height: 100vh;
-        box-sizing: border-box;
-    }
-    
-    .header {
-        text-align: center;
-        margin-bottom: 50px;
-        position: relative;
-        width: 100%;
-    }
-    
-    .header h1 {
-        font-size: 56px;
-        margin: 0 0 10px 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-    
-    .subtitle {
-        font-size: 18px;
-        color: #a0a0a0;
-        margin: 0;
-    }
-    
-    .header-actions {
-        position: absolute;
-        top: 0;
-        right: 0;
-        display: flex;
-        gap: 8px;
-    }
-    
-    .nav-btn {
-        background: #252525;
-        border: 1px solid #353535;
-        border-radius: 8px;
-        padding: 8px 16px;
-        cursor: pointer;
-        font-size: 20px;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .nav-btn:hover {
-        background: #2a2a2a;
-        border-color: #454545;
-        transform: scale(1.05);
-    }
-    
-    .ports-btn:hover {
-        border-color: #667eea;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-    }
-    
-    .tunnels-btn:hover {
-        border-color: #9b59b6;
-        box-shadow: 0 4px 12px rgba(155, 89, 182, 0.3);
-    }
-    
-    .about-btn {
-        background: #252525;
-        border: 1px solid #353535;
-        border-radius: 8px;
-        padding: 8px 16px;
-        cursor: pointer;
-        font-size: 20px;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .about-btn:hover {
-        background: #2a2a2a;
-        border-color: #454545;
-        transform: scale(1.05);
-    }
-    
-    .theme-toggle {
-        background: #252525;
-        border: 1px solid #353535;
-        border-radius: 8px;
-        padding: 8px 16px;
-        cursor: pointer;
-        font-size: 20px;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .theme-toggle:hover {
-        background: #2a2a2a;
-        border-color: #454545;
-        transform: scale(1.05);
-    }
-    
-    .cards-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-        gap: 24px;
-        margin-bottom: 50px;
-    }
-    
-    .card {
-        background: #2a2a2a;
-        border-radius: 16px;
-        padding: 32px;
-        border: 1px solid #353535;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-    
-    .card:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 12px 32px rgba(102, 126, 234, 0.3);
-        border-color: #667eea;
-    }
-    
-    .card-icon {
-        font-size: 64px;
-        text-align: center;
-        margin-bottom: 8px;
-    }
-    
-    .card-title {
-        font-size: 24px;
-        margin: 0;
-        color: #e0e0e0;
-        text-align: center;
-    }
-    
-    .card-description {
-        font-size: 14px;
-        color: #b0b0b0;
-        text-align: center;
-        margin: 0;
-        line-height: 1.6;
-    }
-    
-    .card-features {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        justify-content: center;
-        margin-top: 8px;
-    }
-    
-    .feature {
-        font-size: 12px;
-        color: #a0a0a0;
-        background: #353535;
-        padding: 4px 12px;
-        border-radius: 12px;
-    }
-    
-    .info-section {
-        background: #2a2a2a;
-        border-radius: 12px;
-        padding: 32px;
-        border: 1px solid #353535;
-    }
-    
-    .info-section h3 {
-        font-size: 20px;
-        margin: 0 0 24px 0;
-        color: #e0e0e0;
-    }
-    
-    .info-section p {
-        font-size: 14px;
-        color: #b0b0b0;
-        line-height: 1.6;
-        margin: 0 0 24px 0;
-    }
-    
-    .info-features {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 24px;
-    }
-    
-    .info-feature {
-        display: flex;
-        gap: 16px;
-        align-items: flex-start;
-    }
-    
-    .info-feature-icon {
-        font-size: 32px;
-        flex-shrink: 0;
-    }
-    
-    .info-feature-text h4 {
-        font-size: 16px;
-        margin: 0 0 4px 0;
-        color: #e0e0e0;
-    }
-    
-    .info-feature-text p {
-        font-size: 13px;
-        color: #b0b0b0;
-        margin: 0;
-        line-height: 1.5;
-    }
-    
-    .developer-info {
-        margin-top: 32px;
-        padding-top: 24px;
-        border-top: 1px solid #353535;
-    }
-    
-    .developer-info h4 {
-        font-size: 16px;
-        margin: 0 0 12px 0;
-        color: #e0e0e0;
-    }
-    
-    .developer-info p {
-        font-size: 14px;
-        color: #b0b0b0;
-        margin: 0 0 8px 0;
-    }
-    
-    .contact-link {
-        color: #667eea;
-        text-decoration: none;
-        transition: color 0.3s ease;
-    }
-    
-    .contact-link:hover {
-        color: #764ba2;
-        text-decoration: underline;
-    }
-    
-    .container.light {
-        background: #f5f5f5;
-        color: #333333;
-    }
-    
-    .container.light .header h1 {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-    
-    .container.light .subtitle {
-        color: #666666;
-    }
-    
-    .container.light .nav-btn {
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
-        color: #333333;
-    }
-    
-    .container.light .nav-btn:hover {
-        background: #f8f9fa;
-        border-color: #d0d0d0;
-    }
-    
-    .container.light .about-btn {
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
-        color: #333333;
-    }
-    
-    .container.light .about-btn:hover {
-        background: #f8f9fa;
-        border-color: #d0d0d0;
-    }
-    
-    .container.light .theme-toggle {
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
-        color: #333333;
-    }
-    
-    .container.light .theme-toggle:hover {
-        background: #f8f9fa;
-        border-color: #d0d0d0;
-    }
-    
-    .container.light .card {
-        background: #ffffff;
-        border: 1px solid #dee2e6;
-    }
-    
-    .container.light .card:hover {
-        border-color: #667eea;
-        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
-    }
-    
-    .container.light .card-title {
-        color: #495057;
-    }
-    
-    .container.light .card-description {
-        color: #6c757d;
-    }
-    
-    .container.light .info-section {
-        background: #ffffff;
-        border: 1px solid #dee2e6;
-    }
-    
-    .container.light .info-section h3 {
-        color: #495057;
-    }
-    
-    .container.light .info-section p {
-        color: #6c757d;
-    }
-    
-    .container.light .info-features {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-    }
-    
-    .container.light .info-features li {
-        color: #6c757d;
-    }
-    
-    .container.light .developer-info {
-        border-top-color: #e0e0e0;
-    }
-    
-    .container.light .developer-info h4 {
-        color: #333333;
-    }
-    
-    .container.light .developer-info p {
-        color: #666666;
-    }
-    
-    .container.light .contact-link {
-        color: #667eea;
-    }
-    
-    .container.light .contact-link:hover {
-        color: #764ba2;
-    }
-</style>
+    <!-- 功能卡片 -->
+    <MRow Dense Justify="JustifyTypes.Center" Class="mb-6">
+        <MCol Cols="12" Sm="6" Md="5" Lg="4" Class="pa-2">
+            <MCard Elevation="4" Hover OnClick="@GoToPorts" Class="cursor-pointer transition-swing h-100">
+                <MCardText Class="text-center pa-6">
+                    <div class="d-inline-flex align-center justify-center rounded-circle mb-4" style="width: 64px; height: 64px; background: var(--m-primary-color-4);">
+                        <MIcon Size="32" Color="primary">mdi-lan-connect</MIcon>
+                    </div>
+                    <h2 class="text-h5 font-weight-bold mb-3">端口管理</h2>
+                    <p class="text-body2 text--secondary mb-4">查看和管理系统端口，支持过滤、收藏和监控</p>
+                    <div class="d-flex flex-wrap justify-center gap-2">
+                        <MChip Small Outlined Color="primary">扫描端口</MChip>
+                        <MChip Small Outlined Color="primary">终止进程</MChip>
+                        <MChip Small Outlined Color="primary">收藏端口</MChip>
+                    </div>
+                </MCardText>
+            </MCard>
+        </MCol>
+        <MCol Cols="12" Sm="6" Md="5" Lg="4" Class="pa-2">
+            <MCard Elevation="4" Hover OnClick="@GoToTunnels" Class="cursor-pointer transition-swing h-100">
+                <MCardText Class="text-center pa-6">
+                    <div class="d-inline-flex align-center justify-center rounded-circle mb-4" style="width: 64px; height: 64px; background: var(--m-info-color-4);">
+                        <MIcon Size="32" Color="info">mdi-earth</MIcon>
+                    </div>
+                    <h2 class="text-h5 font-weight-bold mb-3">隧道管理</h2>
+                    <p class="text-body2 text--secondary mb-4">创建和管理Cloudflare隧道，一键发布至公网</p>
+                    <div class="d-flex flex-wrap justify-center gap-2">
+                        <MChip Small Outlined Color="info">创建隧道</MChip>
+                        <MChip Small Outlined Color="info">停止隧道</MChip>
+                        <MChip Small Outlined Color="info">复制URL</MChip>
+                    </div>
+                </MCardText>
+            </MCard>
+        </MCol>
+    </MRow>
+
+    <!-- 关于部分 -->
+    <MRow Dense>
+        <MCol Cols="12">
+            <MCard Elevation="2" Class="transition-swing">
+                <MCardTitle Class="py-4 px-4 d-flex align-center">
+                    <MIcon Small Color="primary" Class="mr-2">mdi-information</MIcon>
+                    <span class="text-h6 font-weight-medium">关于 PortManager</span>
+                </MCardTitle>
+                <MDivider />
+                <MCardText Class="pa-4">
+                    <p class="text-body1 mb-6 text-center">PortManager 是一个功能强大的端口管理工具，帮助您轻松管理系统端口和创建 Cloudflare 隧道。</p>
+                    
+                    <!-- 应用功能 -->
+                    <div class="mb-6">
+                        <h5 class="text-subtitle-1 font-weight-medium mb-4 d-flex align-center">
+                            <MIcon Small Color="primary" Class="mr-2">mdi-feature-search</MIcon>
+                            应用功能
+                        </h5>
+                        <MRow Dense>
+                            <MCol Cols="12" Sm="6" Md="4" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-3 transition-swing h-100" Hover>
+                                    <div class="d-flex align-center gap-3">
+                                        <div class="d-flex align-center justify-center rounded" style="width: 32px; height: 32px; background: var(--m-primary-color-4);">
+                                            <MIcon XSmall Color="primary">mdi-lan-connect</MIcon>
+                                        </div>
+                                        <span class="text-body2">实时监控本地端口状态</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="12" Sm="6" Md="4" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-3 transition-swing h-100" Hover>
+                                    <div class="d-flex align-center gap-3">
+                                        <div class="d-flex align-center justify-center rounded" style="width: 32px; height: 32px; background: var(--m-error-color-4);">
+                                            <MIcon XSmall Color="error">mdi-lightning-bolt</MIcon>
+                                        </div>
+                                        <span class="text-body2">快速终止占用端口的进程</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="12" Sm="6" Md="4" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-3 transition-swing h-100" Hover>
+                                    <div class="d-flex align-center gap-3">
+                                        <div class="d-flex align-center justify-center rounded" style="width: 32px; height: 32px; background: var(--m-info-color-4);">
+                                            <MIcon XSmall Color="info">mdi-earth</MIcon>
+                                        </div>
+                                        <span class="text-body2">Cloudflare Tunnel 隧道管理</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="12" Sm="6" Md="4" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-3 transition-swing h-100" Hover>
+                                    <div class="d-flex align-center gap-3">
+                                        <div class="d-flex align-center justify-center rounded" style="width: 32px; height: 32px; background: var(--m-warning-color-4);">
+                                            <MIcon XSmall Color="warning">mdi-star</MIcon>
+                                        </div>
+                                        <span class="text-body2">端口收藏功能</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="12" Sm="6" Md="4" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-3 transition-swing h-100" Hover>
+                                    <div class="d-flex align-center gap-3">
+                                        <div class="d-flex align-center justify-center rounded" style="width: 32px; height: 32px; background: var(--m-success-color-4);">
+                                            <MIcon XSmall Color="success">mdi-eye</MIcon>
+                                        </div>
+                                        <span class="text-body2">端口状态监控与通知</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="12" Sm="6" Md="4" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-3 transition-swing h-100" Hover>
+                                    <div class="d-flex align-center gap-3">
+                                        <div class="d-flex align-center justify-center rounded" style="width: 32px; height: 32px; background: var(--m-secondary-color-4);">
+                                            <MIcon XSmall Color="secondary">mdi-palette</MIcon>
+                                        </div>
+                                        <span class="text-body2">深色/浅色主题切换</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="12" Sm="6" Md="4" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-3 transition-swing h-100" Hover>
+                                    <div class="d-flex align-center gap-3">
+                                        <div class="d-flex align-center justify-center rounded" style="width: 32px; height: 32px; background: var(--m-accent-color-4);">
+                                            <MIcon XSmall Color="accent">mdi-magnify</MIcon>
+                                        </div>
+                                        <span class="text-body2">端口搜索与筛选</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                        </MRow>
+                    </div>
+
+                    <!-- 技术栈 -->
+                    <div class="mb-6">
+                        <h5 class="text-subtitle-1 font-weight-medium mb-4 d-flex align-center">
+                            <MIcon Small Color="primary" Class="mr-2">mdi-code-tags</MIcon>
+                            技术栈
+                        </h5>
+                        <MRow Dense Justify="JustifyTypes.Center">
+                            <MCol Cols="6" Sm="3" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="h-100 transition-swing" Hover>
+                                    <MCardText Class="text-center pa-4">
+                                        <div class="d-inline-flex align-center justify-center rounded-circle mb-3" style="width: 48px; height: 48px; background: var(--m-primary-color-4);">
+                                            <MIcon Color="primary">mdi-dot-net</MIcon>
+                                        </div>
+                                        <p class="text-body2 font-weight-medium mb-0">.NET 10</p>
+                                    </MCardText>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="3" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="h-100 transition-swing" Hover>
+                                    <MCardText Class="text-center pa-4">
+                                        <div class="d-inline-flex align-center justify-center rounded-circle mb-3" style="width: 48px; height: 48px; background: var(--m-info-color-4);">
+                                            <MIcon Color="info">mdi-web</MIcon>
+                                        </div>
+                                        <p class="text-body2 font-weight-medium mb-0">Blazor Server</p>
+                                    </MCardText>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="3" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="h-100 transition-swing" Hover>
+                                    <MCardText Class="text-center pa-4">
+                                        <div class="d-inline-flex align-center justify-center rounded-circle mb-3" style="width: 48px; height: 48px; background: var(--m-success-color-4);">
+                                            <MIcon Color="success">mdi-palette</MIcon>
+                                        </div>
+                                        <p class="text-body2 font-weight-medium mb-0">MASA Blazor</p>
+                                    </MCardText>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="3" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="h-100 transition-swing" Hover>
+                                    <MCardText Class="text-center pa-4">
+                                        <div class="d-inline-flex align-center justify-center rounded-circle mb-3" style="width: 48px; height: 48px; background: var(--m-warning-color-4);">
+                                            <MIcon Color="warning">mdi-cloud</MIcon>
+                                        </div>
+                                        <p class="text-body2 font-weight-medium mb-0">Cloudflare</p>
+                                    </MCardText>
+                                </MCard>
+                            </MCol>
+                        </MRow>
+                    </div>
+
+                    <!-- 版本与开发者信息 -->
+                    <MRow Dense>
+                        <MCol Cols="12">
+                            <MCard Elevation="0" Outlined Class="pa-4 transition-swing" Hover>
+                                <div class="d-flex align-start gap-4">
+                                    <div class="d-flex align-center justify-center rounded-circle flex-shrink-0" style="width: 48px; height: 48px; background: var(--m-primary-color-4);">
+                                        <MIcon Color="primary">mdi-account-group</MIcon>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <h5 class="text-subtitle-1 font-weight-medium mb-3">版本与开发者信息</h5>
+                                        <MRow Dense>
+                                            <MCol Cols="6" Sm="3">
+                                                <div class="mb-2">
+                                                    <span class="text-caption text--secondary d-block mb-1">版本号</span>
+                                                    <span class="text-body1 font-weight-medium">v1.0.0</span>
+                                                </div>
+                                            </MCol>
+                                            <MCol Cols="6" Sm="3">
+                                                <div class="mb-2">
+                                                    <span class="text-caption text--secondary d-block mb-1">运行平台</span>
+                                                    <span class="text-body1 font-weight-medium">Blazor Web</span>
+                                                </div>
+                                            </MCol>
+                                            <MCol Cols="6" Sm="3">
+                                                <div class="mb-2">
+                                                    <span class="text-caption text--secondary d-block mb-1">开发团队</span>
+                                                    <span class="text-body1 font-weight-medium">科控物联</span>
+                                                </div>
+                                            </MCol>
+                                            <MCol Cols="6" Sm="3">
+                                                <div class="mb-2">
+                                                    <span class="text-caption text--secondary d-block mb-1">联系QQ</span>
+                                                    <span class="text-body1 font-weight-medium">2492123056</span>
+                                                </div>
+                                            </MCol>
+                                        </MRow>
+                                    </div>
+                                </div>
+                            </MCard>
+                        </MCol>
+                    </MRow>
+                </MCardText>
+            </MCard>
+        </MCol>
+    </MRow>
+</MContainer>
 
 @code {
-    private bool _isFirstRender = true;
-
-    protected override Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            _ = JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
-        }
-        return base.OnAfterRenderAsync(firstRender);
-    }
-
     private void GoToPorts()
     {
         Navigation.NavigateTo("/ports");
@@ -481,16 +259,5 @@
     private void GoToTunnels()
     {
         Navigation.NavigateTo("/tunnels");
-    }
-
-    private void GoToAbout()
-    {
-        Navigation.NavigateTo("/about");
-    }
-
-    private async void ToggleTheme()
-    {
-        ThemeService.ToggleTheme();
-        await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
     }
 }

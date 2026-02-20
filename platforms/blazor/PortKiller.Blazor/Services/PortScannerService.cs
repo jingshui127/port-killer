@@ -11,6 +11,7 @@ namespace PortKiller.Blazor.Services;
 public class PortScannerService
 {
     private readonly List<PortInfo> _ports = new();
+    private readonly object _lock = new();
     private readonly SettingsService _settingsService;
     private readonly ILogger<PortScannerService> _logger;
 
@@ -42,14 +43,17 @@ public class PortScannerService
 
     public List<PortInfo> GetPorts()
     {
-        return _ports;
+        lock (_lock)
+        {
+            return _ports.ToList();
+        }
     }
 
     public async Task RefreshPortsAsync()
     {
         await Task.Run(() =>
         {
-            _ports.Clear();
+            var newPorts = new List<PortInfo>();
             var processedPorts = new HashSet<int>();
             
             try
@@ -90,7 +94,7 @@ public class PortScannerService
                         }
                     }
                     
-                    _ports.Add(new PortInfo
+                    newPorts.Add(new PortInfo
                     {
                         Port = port,
                         ProcessName = processName,
@@ -104,6 +108,13 @@ public class PortScannerService
                     });
                     
                     processedPorts.Add(port);
+                }
+                
+                // 原子性更新端口列表
+                lock (_lock)
+                {
+                    _ports.Clear();
+                    _ports.AddRange(newPorts);
                 }
             }
             catch (Exception ex)

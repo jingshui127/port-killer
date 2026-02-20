@@ -1,0 +1,70 @@
+@using PortKiller.Blazor.Services
+@using Masa.Blazor
+@inject NavigationManager Navigation
+@inject ThemeService ThemeService
+@inject MasaBlazor MasaBlazor
+@implements IDisposable
+
+<div class="nav-bar">
+    <MButton Icon Small Title="返回主页" OnClick="@GoToHome">
+        <MIcon Small>mdi-home</MIcon>
+    </MButton>
+    <MButton Icon Small Title="端口管理" OnClick="@GoToPorts">
+        <MIcon Small>mdi-lan-connect</MIcon>
+    </MButton>
+    <MButton Icon Small Title="隧道管理" OnClick="@GoToTunnels">
+        <MIcon Small>mdi-earth</MIcon>
+    </MButton>
+    <MButton Icon Small Title="切换主题" OnClick="@ToggleTheme">
+        <MIcon Small>@(IsDarkTheme ? "mdi-white-balance-sunny" : "mdi-weather-night")</MIcon>
+    </MButton>
+</div>
+
+@code {
+    private bool IsDarkTheme => MasaBlazor.Theme.DefaultTheme == "dark";
+
+    protected override void OnInitialized()
+    {
+        ThemeService.OnThemeChanged += OnThemeChanged;
+    }
+
+    private void OnThemeChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void GoToHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoToPorts()
+    {
+        Navigation.NavigateTo("/ports");
+    }
+
+    private void GoToTunnels()
+    {
+        Navigation.NavigateTo("/tunnels");
+    }
+
+    private void ToggleTheme()
+    {
+        ThemeService.ToggleTheme();
+    }
+
+    public void Dispose()
+    {
+        ThemeService.OnThemeChanged -= OnThemeChanged;
+    }
+}
+
+<style>
+    .nav-bar {
+        display: flex;
+        justify-content: flex-end;
+        gap: 4px;
+        padding: 4px 8px;
+        height: 32px;
+    }
+</style>

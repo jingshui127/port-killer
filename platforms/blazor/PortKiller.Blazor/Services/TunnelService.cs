@@ -14,6 +14,7 @@ public class TunnelService
     private readonly ConcurrentDictionary<int, Process> _tunnelProcesses = new();
     private readonly ConcurrentDictionary<int, string> _tunnelUrls = new();
     private readonly ConcurrentDictionary<int, string> _tunnelErrors = new();
+    private readonly ConcurrentDictionary<int, bool> _processOutputAttached = new();
     private readonly ILogger<TunnelService>? _logger;
     private readonly SettingsService _settingsService;
     private CloudflaredStatus? _cachedCloudflaredStatus;
@@ -90,6 +91,48 @@ public class TunnelService
                 
                 _tunnels[tunnel.Port] = tunnel;
                 _tunnelProcesses[tunnel.Port] = existingProcess;
+                _tunnelUrls[tunnel.Port] = savedTunnel.TunnelUrl;
+                
+                // 为现有进程设置输出读取，以便捕获URL更新（只附加一次）
+                if (!_processOutputAttached.ContainsKey(savedTunnel.Port))
+                {
+                    try
+                    {
+                        // 检查进程是否支持输出重定向
+                        if (existingProcess.StartInfo.RedirectStandardOutput)
+                        {
+                            existingProcess.OutputDataReceived += (sender, e) =>
+                            {
+                                if (!string.IsNullOrEmpty(e.Data))
+                                {
+                                    ParseOutput(savedTunnel.Port, e.Data);
+                                }
+                            };
+                            existingProcess.ErrorDataReceived += (sender, e) =>
+                            {
+                                if (!string.IsNullOrEmpty(e.Data))
+                                {
+                                    ParseOutput(savedTunnel.Port, e.Data);
+                                }
+                            };
+                            existingProcess.BeginOutputReadLine();
+                            existingProcess.BeginErrorReadLine();
+                            _processOutputAttached[savedTunnel.Port] = true;
+                        }
+                        else
+                        {
+                            _logger?.LogDebug($"[TunnelService] Process for port {savedTunnel.Port} does not have redirected output");
+                            _processOutputAttached[savedTunnel.Port] = false;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning($"[TunnelService] Could not attach to process output for port {savedTunnel.Port}: {ex.Message}");
+                        _processOutputAttached[savedTunnel.Port] = false;
+                    }
+                }
+                
+                SaveActiveTunnels();
             }
             else
             {
@@ -106,23 +149,26 @@ public class TunnelService
         {
             _logger?.LogInformation($"[TunnelService] Auto-restarting tunnel for port {savedTunnel.Port}");
             
+            // 保留原来的URL，如果重启失败可以恢复
+            var originalUrl = savedTunnel.TunnelUrl;
+            
             var newTunnel = new CloudflareTunnel
             {
                 Port = savedTunnel.Port,
                 Status = "Starting",
                 StartTime = DateTime.Now,
                 TunnelName = savedTunnel.TunnelName ?? $"port-{savedTunnel.Port}-tunnel",
-                TunnelUrl = string.Empty
+                TunnelUrl = originalUrl // 保留原URL
             };
 
             _tunnels[savedTunnel.Port] = newTunnel;
+            _tunnelUrls[savedTunnel.Port] = originalUrl; // 同时更新URL字典
             SaveActiveTunnels();
 
             var cloudflaredProcess = await StartCloudflaredAsync(savedTunnel.Port, newTunnel.TunnelName);
             newTunnel.ProcessId = cloudflaredProcess.Id;
             newTunnel.Status = "Active";
             
-            _tunnelUrls[savedTunnel.Port] = string.Empty;
             _tunnelErrors[savedTunnel.Port] = string.Empty;
             
             var timeout = TimeSpan.FromSeconds(30);
@@ -130,8 +176,9 @@ public class TunnelService
 
             while (DateTime.Now - startTime < timeout)
             {
-                if (!string.IsNullOrEmpty(_tunnelUrls[savedTunnel.Port]))
+                if (!string.IsNullOrEmpty(_tunnelUrls[savedTunnel.Port]) && _tunnelUrls[savedTunnel.Port] != originalUrl)
                 {
+                    // 获取到新URL，更新隧道信息
                     newTunnel.TunnelUrl = _tunnelUrls[savedTunnel.Port];
                     SaveActiveTunnels();
                     _logger?.LogInformation($"[TunnelService] Tunnel auto-restarted successfully: {newTunnel.TunnelUrl}");
@@ -143,6 +190,10 @@ public class TunnelService
                     _logger?.LogError($"[TunnelService] Failed to auto-restart tunnel: {_tunnelErrors[savedTunnel.Port]}");
                     newTunnel.Status = "Error";
                     newTunnel.LastError = _tunnelErrors[savedTunnel.Port];
+                    // 保留原URL
+                    newTunnel.TunnelUrl = originalUrl;
+                    _tunnelUrls[savedTunnel.Port] = originalUrl;
+                    SaveActiveTunnels();
                     return;
                 }
                 
@@ -151,6 +202,10 @@ public class TunnelService
                     _logger?.LogError($"[TunnelService] Cloudflared process exited with code {cloudflaredProcess.ExitCode}");
                     newTunnel.Status = "Error";
                     newTunnel.LastError = $"Process exited with code {cloudflaredProcess.ExitCode}";
+                    // 保留原URL
+                    newTunnel.TunnelUrl = originalUrl;
+                    _tunnelUrls[savedTunnel.Port] = originalUrl;
+                    SaveActiveTunnels();
                     return;
                 }
                 
@@ -160,6 +215,10 @@ public class TunnelService
             _logger?.LogError($"[TunnelService] Timeout waiting for tunnel URL");
             newTunnel.Status = "Error";
             newTunnel.LastError = "Timeout waiting for tunnel URL";
+            // 保留原URL
+            newTunnel.TunnelUrl = originalUrl;
+            _tunnelUrls[savedTunnel.Port] = originalUrl;
+            SaveActiveTunnels();
         }
         catch (Exception ex)
         {
@@ -168,13 +227,28 @@ public class TunnelService
             {
                 tunnel.Status = "Error";
                 tunnel.LastError = ex.Message;
+                // 保留原URL
+                tunnel.TunnelUrl = savedTunnel.TunnelUrl;
+                _tunnelUrls[savedTunnel.Port] = savedTunnel.TunnelUrl;
+                SaveActiveTunnels();
             }
         }
     }
 
     public List<CloudflareTunnel> GetTunnels()
     {
-        return _tunnels.Values.ToList();
+        var tunnels = _tunnels.Values.ToList();
+        
+        // 同步_tunnelUrls字典中的URL到隧道对象
+        foreach (var tunnel in tunnels)
+        {
+            if (_tunnelUrls.TryGetValue(tunnel.Port, out var url) && !string.IsNullOrEmpty(url))
+            {
+                tunnel.TunnelUrl = url;
+            }
+        }
+        
+        return tunnels;
     }
 
     public Process? GetProcessForPort(int port)
@@ -689,6 +763,10 @@ public class TunnelService
     {
         var scannedTunnels = new List<CloudflareTunnel>();
         
+        // 获取保存的隧道信息用于恢复URL
+        var savedTunnels = _settingsService.GetActiveTunnels();
+        var savedTunnelsDict = savedTunnels.ToDictionary(t => t.Port, t => t);
+        
         await Task.Run(() =>
         {
             try
@@ -711,6 +789,19 @@ public class TunnelService
                                 {
                                     var existingTunnel = _tunnels.Values.FirstOrDefault(t => t.Port == port);
                                     
+                                    // 尝试从保存的设置中恢复URL
+                                    string tunnelUrl = string.Empty;
+                                    string tunnelName = $"Tunnel-{port}";
+                                    if (savedTunnelsDict.TryGetValue(port, out var savedTunnel))
+                                    {
+                                        tunnelUrl = savedTunnel.TunnelUrl;
+                                        tunnelName = savedTunnel.TunnelName ?? tunnelName;
+                                    }
+                                    else if (_tunnelUrls.ContainsKey(port))
+                                    {
+                                        tunnelUrl = _tunnelUrls[port];
+                                    }
+                                    
                                     if (existingTunnel == null)
                                     {
                                         var startTime = DateTime.Now;
@@ -725,72 +816,106 @@ public class TunnelService
                                         var newTunnel = new CloudflareTunnel
                                         {
                                             Port = port,
-                                            TunnelName = $"Tunnel-{port}",
+                                            TunnelName = tunnelName,
                                             Status = process.HasExited ? "Stopped" : "Active",
                                             ProcessId = process.Id,
                                             StartTime = startTime,
                                             Uptime = FormatUptime(DateTime.Now - startTime),
-                                            TunnelUrl = _tunnelUrls.ContainsKey(port) ? _tunnelUrls[port] : "Unknown"
+                                            TunnelUrl = tunnelUrl
                                         };
                                         
                                         _tunnels[port] = newTunnel;
                                         _tunnelProcesses[port] = process;
+                                        _tunnelUrls[port] = tunnelUrl;
                                         scannedTunnels.Add(newTunnel);
                                         shouldDispose = false;
                                         
-                                        // 为现有进程开始读取输出以捕获URL
-                                        try
+                                        // 为现有进程开始读取输出以捕获URL（只附加一次）
+                                        if (!_processOutputAttached.ContainsKey(port))
                                         {
-                                            process.OutputDataReceived += (sender, e) =>
+                                            try
                                             {
-                                                if (!string.IsNullOrEmpty(e.Data))
+                                                if (process.StartInfo.RedirectStandardOutput)
                                                 {
-                                                    ParseOutput(port, e.Data);
+                                                    process.OutputDataReceived += (sender, e) =>
+                                                    {
+                                                        if (!string.IsNullOrEmpty(e.Data))
+                                                        {
+                                                            ParseOutput(port, e.Data);
+                                                        }
+                                                    };
+                                                    process.ErrorDataReceived += (sender, e) =>
+                                                    {
+                                                        if (!string.IsNullOrEmpty(e.Data))
+                                                        {
+                                                            ParseOutput(port, e.Data);
+                                                        }
+                                                    };
+                                                    process.BeginOutputReadLine();
+                                                    process.BeginErrorReadLine();
+                                                    _processOutputAttached[port] = true;
                                                 }
-                                            };
-                                            process.ErrorDataReceived += (sender, e) =>
+                                                else
+                                                {
+                                                    _processOutputAttached[port] = false;
+                                                }
+                                            }
+                                            catch
                                             {
-                                                if (!string.IsNullOrEmpty(e.Data))
-                                                {
-                                                    ParseOutput(port, e.Data);
-                                                }
-                                            };
-                                            process.BeginOutputReadLine();
-                                            process.BeginErrorReadLine();
+                                                _processOutputAttached[port] = false;
+                                            }
                                         }
-                                        catch
-                                        {
-                                        }
+                                        
+                                        SaveActiveTunnels();
                                     }
                                     else
                                     {
                                         existingTunnel.ProcessId = process.Id;
                                         existingTunnel.Status = process.HasExited ? "Stopped" : "Active";
                                         existingTunnel.Uptime = FormatUptime(DateTime.Now - existingTunnel.StartTime);
+                                        // 恢复保存的URL（如果当前URL为空、Unknown，且新URL有效）
+                                        if ((string.IsNullOrEmpty(existingTunnel.TunnelUrl) || existingTunnel.TunnelUrl == "Unknown") 
+                                            && !string.IsNullOrEmpty(tunnelUrl) && tunnelUrl != "Unknown")
+                                        {
+                                            existingTunnel.TunnelUrl = tunnelUrl;
+                                            _tunnelUrls[port] = tunnelUrl;
+                                        }
                                         shouldDispose = false;
                                         
-                                        // 为现有进程开始读取输出以捕获URL
-                                        try
+                                        // 为现有进程开始读取输出以捕获URL（只附加一次）
+                                        if (!_processOutputAttached.ContainsKey(port))
                                         {
-                                            process.OutputDataReceived += (sender, e) =>
+                                            try
                                             {
-                                                if (!string.IsNullOrEmpty(e.Data))
+                                                if (process.StartInfo.RedirectStandardOutput)
                                                 {
-                                                    ParseOutput(port, e.Data);
+                                                    process.OutputDataReceived += (sender, e) =>
+                                                    {
+                                                        if (!string.IsNullOrEmpty(e.Data))
+                                                        {
+                                                            ParseOutput(port, e.Data);
+                                                        }
+                                                    };
+                                                    process.ErrorDataReceived += (sender, e) =>
+                                                    {
+                                                        if (!string.IsNullOrEmpty(e.Data))
+                                                        {
+                                                            ParseOutput(port, e.Data);
+                                                        }
+                                                    };
+                                                    process.BeginOutputReadLine();
+                                                    process.BeginErrorReadLine();
+                                                    _processOutputAttached[port] = true;
                                                 }
-                                            };
-                                            process.ErrorDataReceived += (sender, e) =>
+                                                else
+                                                {
+                                                    _processOutputAttached[port] = false;
+                                                }
+                                            }
+                                            catch
                                             {
-                                                if (!string.IsNullOrEmpty(e.Data))
-                                                {
-                                                    ParseOutput(port, e.Data);
-                                                }
-                                            };
-                                            process.BeginOutputReadLine();
-                                            process.BeginErrorReadLine();
-                                        }
-                                        catch
-                                        {
+                                                _processOutputAttached[port] = false;
+                                            }
                                         }
                                     }
                                 }

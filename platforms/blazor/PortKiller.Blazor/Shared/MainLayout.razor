@@ -1,8 +1,67 @@
 @inherits LayoutComponentBase
 @using PortKiller.Blazor.Services
 @using Masa.Blazor
-@inject ThemeService ThemeService
 
-<MTheme Value="@(ThemeService.IsDarkTheme ? true : false)">
-    @Body
-</MTheme>
+<MApp>
+    <MMain Class="pa-0">
+        @Body
+    </MMain>
+</MApp>
+
+@code {
+}
+
+<style>
+    /* 端口卡片样式 */
+    .port-card {
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+    }
+    
+    .port-card:hover,
+    .port-card-hover {
+        border-color: var(--m-primary-color) !important;
+        background-color: var(--m-primary-color-4) !important;
+    }
+    
+    .port-card-selected {
+        border: 2px solid var(--m-primary-color) !important;
+        background-color: var(--m-primary-color-8) !important;
+    }
+    
+    .port-card-selected:hover,
+    .port-card-selected.port-card-hover {
+        border-color: var(--m-primary-color) !important;
+        background-color: var(--m-primary-color-12) !important;
+        box-shadow: 0 0 12px var(--m-primary-color-4) !important;
+    }
+    
+    /* 端口号样式 - 防止换行 */
+    .port-number-box {
+        min-width: 48px;
+        height: 36px;
+        background: var(--m-primary-color-4);
+        padding: 0 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .port-number-text {
+        white-space: nowrap;
+        font-size: 14px;
+        line-height: 1;
+    }
+    
+    /* 隧道卡片样式 */
+    .tunnel-card {
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+    }
+    
+    .tunnel-card:hover,
+    .tunnel-card-hover {
+        border-color: var(--m-primary-color) !important;
+        background-color: var(--m-primary-color-4) !important;
+    }
+</style>

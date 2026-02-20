@@ -13,37 +13,25 @@
 
 <PageTitle>端口管理</PageTitle>
 
-<div class="container @ThemeService.CurrentTheme">
-    <header class="header">
-        <h1>端口管理</h1>
-        <p class="subtitle">查看和管理系统端口</p>
-        <div class="header-actions">
-            <button class="home-btn" @onclick="@GoToHome" title="返回主页">
-                <span>🏠</span>
-            </button>
-            <button class="nav-btn ports-btn" @onclick="@GoToPorts" title="端口管理">
-                <span>🔌</span>
-            </button>
-            <button class="nav-btn tunnels-btn" @onclick="@GoToTunnels" title="隧道管理">
-                <span>🌐</span>
-            </button>
-            <button class="about-btn" @onclick="@GoToAbout" title="关于">
-                <span>ℹ</span>
-            </button>
-            <button class="theme-toggle" @onclick="@ToggleTheme" title="切换主题">
-                <span>@(ThemeService.IsDarkTheme ? "☀" : "🌙")</span>
-            </button>
-        </div>
-    </header>
+<NavigationMenu />
 
-    @if (_showNotification)
-    {
-        <div class="notification @_notificationType">
-            <span class="notification-icon">@_notificationIcon</span>
-            <span class="notification-message">@_notificationMessage</span>
-            <button class="notification-close" @onclick="@HideNotification">✕</button>
-        </div>
-    }
+<div class="container @(IsLightTheme ? "light" : "")">
+    <MContainer Class="pt-2">
+        <MRow Dense>
+            <MCol Cols="12" Class="text-center">
+                <h2 class="text-h4 font-weight-bold">端口管理</h2>
+                <p class="text-body2 text--secondary">查看和管理系统端口</p>
+            </MCol>
+        </MRow>
+
+        @if (_showNotification)
+        {
+            <div class="notification @_notificationType">
+                <span class="notification-icon">@_notificationIcon</span>
+                <span class="notification-message">@_notificationMessage</span>
+                <button class="notification-close" @onclick="@HideNotification">✕</button>
+            </div>
+        }
 
     <div class="actions">
         <button class="btn btn-primary" @onclick="@RefreshPorts">
@@ -178,10 +166,7 @@
             <div class="port-list">
                 @foreach (var port in _filteredPorts)
                 {
-                    <div class="port-card @(port.IsActive ? "active" : "") @(_selectedPorts.Contains(port.Port) ? "selected" : "")">
-                        <div class="port-checkbox">
-                            <input type="checkbox" checked="@(_selectedPorts.Contains(port.Port))" @onchange="@((e) => TogglePortSelection(port.Port, e.Value))" />
-                        </div>
+                    <div class="port-card @(port.IsActive ? "active" : "") @(_selectedPorts.Contains(port.Port) ? "selected" : "")" @onclick="@(() => TogglePortSelection(port.Port, !_selectedPorts.Contains(port.Port)))">
                         <div class="port-info">
                             <div class="port-header">
                                 <div class="port-number">
@@ -238,6 +223,7 @@
             </div>
         }
     }
+    </MContainer>
 </div>
 
 @if (_showPortDetailsModal && _selectedPort != null)
@@ -345,28 +331,7 @@
 }
 
 <style>
-    body {
-        margin: 0;
-        padding: 0;
-        background: #1e1e1e;
-        color: #e0e0e0;
-    }
-    
-    body.light {
-        background: #f5f5f5;
-        color: #333333;
-    }
-    
-    .container {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 16px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background: #1e1e1e;
-        color: #e0e0e0;
-        min-height: 100vh;
-        box-sizing: border-box;
-    }
+    /* 移除 body 样式，使用 Masa Blazor 主题变量 */
     
     .header {
         text-align: center;
@@ -388,95 +353,6 @@
         font-size: 16px;
         color: #a0a0a0;
         margin: 0;
-    }
-    
-    .header-actions {
-        position: absolute;
-        top: 0;
-        right: 0;
-        display: flex;
-        gap: 8px;
-    }
-    
-    .nav-btn {
-        background: #252525;
-        border: 1px solid #353535;
-        border-radius: 8px;
-        padding: 8px 16px;
-        cursor: pointer;
-        font-size: 20px;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .nav-btn:hover {
-        background: #2a2a2a;
-        border-color: #454545;
-        transform: scale(1.05);
-    }
-    
-    .tunnels-btn:hover {
-        border-color: #9b59b6;
-        box-shadow: 0 4px 12px rgba(155, 89, 182, 0.3);
-    }
-    
-    .home-btn {
-        background: #252525;
-        border: 1px solid #353535;
-        border-radius: 8px;
-        padding: 8px 16px;
-        cursor: pointer;
-        font-size: 20px;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .home-btn:hover {
-        background: #2a2a2a;
-        border-color: #454545;
-        transform: scale(1.05);
-    }
-
-    .about-btn {
-        background: #252525;
-        border: 1px solid #353535;
-        border-radius: 8px;
-        padding: 8px 16px;
-        cursor: pointer;
-        font-size: 20px;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .about-btn:hover {
-        background: #2a2a2a;
-        border-color: #454545;
-        transform: scale(1.05);
-    }
-
-    .theme-toggle {
-        background: #252525;
-        border: 1px solid #353535;
-        border-radius: 8px;
-        padding: 8px 16px;
-        cursor: pointer;
-        font-size: 20px;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .theme-toggle:hover {
-        background: #2a2a2a;
-        border-color: #454545;
-        transform: scale(1.05);
     }
     
     .actions {
@@ -674,20 +550,6 @@
     .port-card.selected {
         border: 2px solid #667eea;
         box-shadow: 0 0 16px rgba(102, 126, 234, 0.3);
-    }
-    
-    .port-checkbox {
-        position: absolute;
-        top: 12px;
-        right: 12px;
-        z-index: 10;
-    }
-    
-    .port-checkbox input[type="checkbox"] {
-        width: 20px;
-        height: 20px;
-        cursor: pointer;
-        accent-color: #667eea;
     }
     
     .batch-actions {
@@ -1307,71 +1169,6 @@
         border-top: 1px solid #353535;
     }
     
-    .container.light {
-        background: #f5f5f5;
-        color: #333333;
-    }
-    
-    .container.light .header h1 {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-    
-    .container.light .subtitle {
-        color: #666666;
-    }
-    
-    .container.light .nav-btn {
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
-        color: #333333;
-    }
-    
-    .container.light .nav-btn:hover {
-        background: #f8f9fa;
-        border-color: #d0d0d0;
-    }
-    
-    .container.light .tunnels-btn:hover {
-        border-color: #9b59b6;
-        box-shadow: 0 4px 12px rgba(155, 89, 182, 0.2);
-    }
-    
-    .container.light .home-btn {
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
-        color: #333333;
-    }
-    
-    .container.light .home-btn:hover {
-        background: #f8f9fa;
-        border-color: #d0d0d0;
-    }
-
-    .container.light .about-btn {
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
-        color: #333333;
-    }
-
-    .container.light .about-btn:hover {
-        background: #f8f9fa;
-        border-color: #d0d0d0;
-    }
-
-    .container.light .theme-toggle {
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
-        color: #333333;
-    }
-    
-    .container.light .theme-toggle:hover {
-        background: #f8f9fa;
-        border-color: #d0d0d0;
-    }
-    
     .container.light .btn {
         background: #667eea;
         color: white;
@@ -1849,6 +1646,7 @@
     private string _notificationType = string.Empty;
     private string _notificationIcon = string.Empty;
     private bool _isTableView = false;
+    private bool IsLightTheme => ThemeService.CurrentTheme == "light";
     private string _sortBy = nameof(PortInfo.Port);
     private bool _sortDesc = false;
     private HashSet<int> _selectedPorts = new();
@@ -2125,32 +1923,6 @@
     {
         _showNotification = false;
         StateHasChanged();
-    }
-
-    private async void ToggleTheme()
-    {
-        ThemeService.ToggleTheme();
-        await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
-    }
-
-    private void GoToHome()
-    {
-        Navigation.NavigateTo("/");
-    }
-
-    private void GoToPorts()
-    {
-        Navigation.NavigateTo("/ports");
-    }
-
-    private void GoToTunnels()
-    {
-        Navigation.NavigateTo("/tunnels");
-    }
-
-    private void GoToAbout()
-    {
-        Navigation.NavigateTo("/about");
     }
 
     private void ShowNotificationHistory()

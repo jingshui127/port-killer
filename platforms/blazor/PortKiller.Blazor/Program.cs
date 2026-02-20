@@ -13,7 +13,7 @@ builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<NotificationService>();
 builder.Services.AddSingleton<PortScannerService>();
 builder.Services.AddSingleton<TunnelService>();
-builder.Services.AddSingleton<ThemeService>();
+builder.Services.AddScoped<ThemeService>();
 
 var app = builder.Build();
 
