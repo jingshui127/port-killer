@@ -80,6 +80,11 @@
                 </div>
             </div>
         </div>
+        <div class="developer-info">
+            <h4>开发者信息</h4>
+            <p>由 <strong>科控物联</strong> 开发</p>
+            <p>QQ: <a href="tencent://message/?uin=2492123056" class="contact-link">2492123056</a></p>
+        </div>
     </div>
 </div>
 
@@ -311,9 +316,58 @@
         line-height: 1.5;
     }
     
+    .developer-info {
+        margin-top: 32px;
+        padding-top: 24px;
+        border-top: 1px solid #353535;
+    }
+    
+    .developer-info h4 {
+        font-size: 16px;
+        margin: 0 0 12px 0;
+        color: #e0e0e0;
+    }
+    
+    .developer-info p {
+        font-size: 14px;
+        color: #b0b0b0;
+        margin: 0 0 8px 0;
+    }
+    
+    .contact-link {
+        color: #667eea;
+        text-decoration: none;
+        transition: color 0.3s ease;
+    }
+    
+    .contact-link:hover {
+        color: #764ba2;
+        text-decoration: underline;
+    }
+    
     .container.light {
         background: #f5f5f5;
         color: #333333;
+    }
+    
+    .container.light .developer-info {
+        border-top-color: #e0e0e0;
+    }
+    
+    .container.light .developer-info h4 {
+        color: #333333;
+    }
+    
+    .container.light .developer-info p {
+        color: #666666;
+    }
+    
+    .container.light .contact-link {
+        color: #667eea;
+    }
+    
+    .container.light .contact-link:hover {
+        color: #764ba2;
     }
 </style>
 
