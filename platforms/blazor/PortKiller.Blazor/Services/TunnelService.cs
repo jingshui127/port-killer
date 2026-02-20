@@ -26,7 +26,11 @@ public class TunnelService
         @"C:\Program Files (x86)\cloudflared\cloudflared.exe",
         @"C:\ProgramData\chocolatey\bin\cloudflared.exe",
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"cloudflared\cloudflared.exe"),
-        @"cloudflared.exe"
+        @"cloudflared.exe",
+        @"/usr/local/bin/cloudflared",
+        @"/usr/bin/cloudflared",
+        @"/usr/local/cloudflared/cloudflared",
+        @"cloudflared"
     };
 
     public static bool IsRunningAsAdministrator()
@@ -38,6 +42,17 @@ public class TunnelService
                 using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
                 var principal = new System.Security.Principal.WindowsPrincipal(identity);
                 return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            try
+            {
+                return System.Environment.UserName == "root" || System.Environment.GetEnvironmentVariable("USER") == "root";
             }
             catch
             {
@@ -162,22 +177,22 @@ public class TunnelService
         return _tunnels.Values.ToList();
     }
 
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     public Process? GetProcessForPort(int port)
     {
-        if (!OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows())
         {
-            foreach (var kvp in _tunnelProcesses)
-            {
-                var process = kvp.Value;
-                if (!process.HasExited)
-                {
-                    return process;
-                }
-            }
-            return null;
+            return GetProcessForPortWindows(port);
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            return GetProcessForPortLinux(port);
         }
         
+        return null;
+    }
+
+    private Process? GetProcessForPortWindows(int port)
+    {
         foreach (var kvp in _tunnelProcesses)
         {
             var process = kvp.Value;
@@ -229,14 +244,72 @@ public class TunnelService
         return foundProcess;
     }
 
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    public string? GetProcessCommandLine(int processId)
+    private Process? GetProcessForPortLinux(int port)
     {
-        if (!OperatingSystem.IsWindows())
+        foreach (var kvp in _tunnelProcesses)
         {
-            return null;
+            var process = kvp.Value;
+            if (!process.HasExited)
+            {
+                return process;
+            }
         }
         
+        var allCloudflaredProcesses = Process.GetProcessesByName("cloudflared");
+        Process? foundProcess = null;
+        var processesToDispose = new List<Process>();
+        
+        foreach (var process in allCloudflaredProcesses)
+        {
+            try
+            {
+                var commandLine = GetProcessCommandLine(process.Id);
+                if (commandLine != null && commandLine.Contains($"--url localhost:{port}"))
+                {
+                    foundProcess = process;
+                }
+                else
+                {
+                    processesToDispose.Add(process);
+                }
+            }
+            catch
+            {
+                processesToDispose.Add(process);
+            }
+        }
+        
+        foreach (var p in processesToDispose)
+        {
+            try
+            {
+                p.Dispose();
+            }
+            catch
+            {
+            }
+        }
+        
+        return foundProcess;
+    }
+
+    public string? GetProcessCommandLine(int processId)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return GetProcessCommandLineWindows(processId);
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            return GetProcessCommandLineLinux(processId);
+        }
+        
+        return null;
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private string? GetProcessCommandLineWindows(int processId)
+    {
         try
         {
             using var searcher = new System.Management.ManagementObjectSearcher(
@@ -248,6 +321,33 @@ public class TunnelService
             }
             
             return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    private string? GetProcessCommandLineLinux(int processId)
+    {
+        try
+        {
+            var cmdlinePath = $"/proc/{processId}/cmdline";
+            if (!File.Exists(cmdlinePath))
+            {
+                return null;
+            }
+            
+            var cmdline = File.ReadAllText(cmdlinePath);
+            
+            if (string.IsNullOrEmpty(cmdline))
+            {
+                return null;
+            }
+            
+            var args = cmdline.Split('\0');
+            return string.Join(" ", args.Where(a => !string.IsNullOrEmpty(a)));
         }
         catch
         {
