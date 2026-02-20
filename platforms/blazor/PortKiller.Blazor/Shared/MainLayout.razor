@@ -1,3 +1,7 @@
 @inherits LayoutComponentBase
+@using PortKiller.Blazor.Services
+@inject ThemeService ThemeService
 
-@Body
+<MTheme Value="@(ThemeService.IsDarkTheme ? true : false)">
+    @Body
+</MTheme>

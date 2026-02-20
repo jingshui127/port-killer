@@ -30,4 +30,9 @@ public class ThemeService
 
     public bool IsDarkTheme => CurrentTheme == "dark";
     public bool IsLightTheme => CurrentTheme == "light";
+    
+    public string GetMasaThemeClass()
+    {
+        return CurrentTheme == "dark" ? "theme--dark" : "theme--light";
+    }
 }
