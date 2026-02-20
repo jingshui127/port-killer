@@ -149,7 +149,7 @@
                                     <span>@(context.Item.IsFavorite ? "★" : "☆")</span>
                                 </button>
                                 <button class="btn-icon @(context.Item.IsWatched ? "watched" : "")" @onclick="@(() => ToggleWatch(context.Item.Port))" title="监控">
-                                    <span>@(context.Item.IsWatched ? "👁" : "👁")</span>
+                                    <span>@(context.Item.IsWatched ? "👁️" : "👁")</span>
                                 </button>
                                 <button class="btn-icon btn-tunnel" @onclick="@(() => CreateTunnelForPort(context.Item.Port))" title="创建隧道">
                                     <span>🌐</span>
@@ -943,6 +943,7 @@
     
     .table-actions .btn-icon.watched {
         color: #3498db;
+        background: rgba(52, 152, 219, 0.2);
     }
     
     .table-actions .btn-icon.btn-tunnel:hover {
@@ -958,6 +959,13 @@
     .table-actions .btn-icon.btn-danger:hover {
         background: rgba(231, 76, 60, 0.2);
         color: #e74c3c;
+    }
+    
+    .table-actions .btn-icon.watched:hover {
+        background: rgba(52, 152, 219, 0.3);
+        color: #2980b9;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
     }
     
     .port-table .v-data-table__header {
