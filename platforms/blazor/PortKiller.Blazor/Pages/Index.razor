@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject ThemeService ThemeService
 @inject ILogger<Index> Logger
+@inject IJSRuntime JSRuntime
 
 <PageTitle>PortManager</PageTitle>
 
@@ -94,6 +95,11 @@
         padding: 0;
         background: #1e1e1e;
         color: #e0e0e0;
+    }
+    
+    body.light {
+        background: #f5f5f5;
+        color: #333333;
     }
     
     .container {
@@ -350,6 +356,90 @@
         color: #333333;
     }
     
+    .container.light .header h1 {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .container.light .subtitle {
+        color: #666666;
+    }
+    
+    .container.light .nav-btn {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        color: #333333;
+    }
+    
+    .container.light .nav-btn:hover {
+        background: #f8f9fa;
+        border-color: #d0d0d0;
+    }
+    
+    .container.light .about-btn {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        color: #333333;
+    }
+    
+    .container.light .about-btn:hover {
+        background: #f8f9fa;
+        border-color: #d0d0d0;
+    }
+    
+    .container.light .theme-toggle {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        color: #333333;
+    }
+    
+    .container.light .theme-toggle:hover {
+        background: #f8f9fa;
+        border-color: #d0d0d0;
+    }
+    
+    .container.light .card {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+    }
+    
+    .container.light .card:hover {
+        border-color: #667eea;
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+    }
+    
+    .container.light .card-title {
+        color: #495057;
+    }
+    
+    .container.light .card-description {
+        color: #6c757d;
+    }
+    
+    .container.light .info-section {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+    }
+    
+    .container.light .info-section h3 {
+        color: #495057;
+    }
+    
+    .container.light .info-section p {
+        color: #6c757d;
+    }
+    
+    .container.light .info-features {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+    }
+    
+    .container.light .info-features li {
+        color: #6c757d;
+    }
+    
     .container.light .developer-info {
         border-top-color: #e0e0e0;
     }
@@ -372,6 +462,12 @@
 </style>
 
 @code {
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
+    }
+
     private void GoToPorts()
     {
         Navigation.NavigateTo("/ports");
@@ -387,8 +483,9 @@
         Navigation.NavigateTo("/about");
     }
 
-    private void ToggleTheme()
+    private async void ToggleTheme()
     {
         ThemeService.ToggleTheme();
+        await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
     }
 }
