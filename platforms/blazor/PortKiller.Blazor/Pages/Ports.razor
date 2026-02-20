@@ -9,6 +9,7 @@
 @inject ILogger<Ports> Logger
 @inject TunnelService TunnelService
 @inject NotificationService NotificationService
+@inject IJSRuntime JSRuntime
 
 <PageTitle>端口管理</PageTitle>
 
@@ -343,6 +344,11 @@
         padding: 0;
         background: #1e1e1e;
         color: #e0e0e0;
+    }
+    
+    body.light {
+        background: #f5f5f5;
+        color: #333333;
     }
     
     .container {
@@ -1281,6 +1287,422 @@
         color: #333333;
     }
     
+    .container.light .header h1 {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .container.light .subtitle {
+        color: #666666;
+    }
+    
+    .container.light .nav-btn {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        color: #333333;
+    }
+    
+    .container.light .nav-btn:hover {
+        background: #f8f9fa;
+        border-color: #d0d0d0;
+    }
+    
+    .container.light .tunnels-btn:hover {
+        border-color: #9b59b6;
+        box-shadow: 0 4px 12px rgba(155, 89, 182, 0.2);
+    }
+    
+    .container.light .home-btn {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        color: #333333;
+    }
+    
+    .container.light .home-btn:hover {
+        background: #f8f9fa;
+        border-color: #d0d0d0;
+    }
+    
+    .container.light .theme-toggle {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        color: #333333;
+    }
+    
+    .container.light .theme-toggle:hover {
+        background: #f8f9fa;
+        border-color: #d0d0d0;
+    }
+    
+    .container.light .btn {
+        background: #667eea;
+        color: white;
+    }
+    
+    .container.light .btn:hover:not(:disabled) {
+        background: #764ba2;
+    }
+    
+    .container.light .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+    
+    .container.light .btn-secondary:hover:not(:disabled) {
+        background: #5a6268;
+    }
+    
+    .container.light .btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .container.light .btn-danger:hover:not(:disabled) {
+        background: #c82333;
+    }
+    
+    .container.light .btn:disabled {
+        background: #6c757d;
+        color: white;
+        opacity: 0.6;
+    }
+    
+    .container.light .search-box input {
+        background: #ffffff;
+        border: 1px solid #ced4da;
+        color: #495057;
+    }
+    
+    .container.light .search-box input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .container.light .search-box input::placeholder {
+        color: #6c757d;
+    }
+    
+    .container.light .search-icon {
+        color: #6c757d;
+    }
+    
+    .container.light .filter-btn {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+        color: #495057;
+    }
+    
+    .container.light .filter-btn.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+    
+    .container.light .filter-btn:hover {
+        background: #e9ecef;
+        border-color: #dee2e6;
+    }
+    
+    .container.light .view-toggle-btn {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+        color: #495057;
+    }
+    
+    .container.light .view-toggle-btn.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+    
+    .container.light .view-toggle-btn:hover {
+        background: #e9ecef;
+        border-color: #dee2e6;
+    }
+    
+    .container.light .port-card {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+    }
+    
+    .container.light .port-card:hover {
+        border-color: #667eea;
+    }
+    
+    .container.light .port-card.active {
+        border-left: 4px solid #28a745;
+    }
+    
+    .container.light .port-card.selected {
+        border: 2px solid #667eea;
+        box-shadow: 0 0 16px rgba(102, 126, 234, 0.3);
+    }
+    
+    .container.light .port-number .label {
+        color: #6c757d;
+    }
+    
+    .container.light .port-number .value {
+        color: #667eea;
+    }
+    
+    .container.light .port-pid {
+        background: #f8f9fa;
+        color: #495057;
+    }
+    
+    .container.light .detail {
+        color: #6c757d;
+    }
+    
+    .container.light .detail .text {
+        color: #495057;
+    }
+    
+    .container.light .btn-icon {
+        background: #f8f9fa;
+        color: #495057;
+    }
+    
+    .container.light .btn-icon:hover {
+        background: #e9ecef;
+    }
+    
+    .container.light .btn-icon.favorite {
+        background: #ffc107;
+        color: white;
+    }
+    
+    .container.light .btn-icon.watched {
+        background: #17a2b8;
+        color: white;
+    }
+    
+    .container.light .btn-icon.btn-tunnel {
+        background: #6f42c1;
+        color: white;
+    }
+    
+    .container.light .btn-icon.btn-info {
+        background: #17a2b8;
+        color: white;
+    }
+    
+    .container.light .btn-icon.btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .container.light .port-table-container {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+    }
+    
+    .container.light .port-table .v-data-table__wrapper {
+        background: #ffffff;
+    }
+    
+    .container.light .port-table .v-data-table-header {
+        background: #f8f9fa;
+    }
+    
+    .container.light .port-table .v-data-table-header th {
+        color: #495057;
+    }
+    
+    .container.light .port-table .v-data-table__tbody tr {
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .container.light .port-table .v-data-table__tbody tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .container.light .port-table .v-data-table__tbody td {
+        color: #495057;
+        border-right: 1px solid #dee2e6;
+    }
+    
+    .container.light .port-table .v-data-table__tbody td div:hover {
+        background: rgba(102, 126, 234, 0.1);
+        color: #667eea;
+    }
+    
+    .container.light .table-actions .btn-icon {
+        background: #f8f9fa;
+        color: #495057;
+    }
+    
+    .container.light .table-actions .btn-icon.favorite {
+        color: #ffc107;
+    }
+    
+    .container.light .table-actions .btn-icon.watched {
+        color: #17a2b8;
+        background: rgba(23, 162, 184, 0.2);
+    }
+    
+    .container.light .table-actions .btn-icon.btn-tunnel:hover {
+        background: rgba(40, 167, 69, 0.2);
+        color: #28a745;
+    }
+    
+    .container.light .table-actions .btn-icon.btn-info:hover {
+        background: rgba(23, 162, 184, 0.2);
+        color: #17a2b8;
+    }
+    
+    .container.light .table-actions .btn-icon.btn-danger:hover {
+        background: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+    }
+    
+    .container.light .table-actions .btn-icon.watched:hover {
+        background: rgba(23, 162, 184, 0.3);
+        color: #138496;
+    }
+    
+    .container.light .port-table .v-data-table__header {
+        background: #f8f9fa !important;
+        border-bottom: 2px solid #667eea !important;
+    }
+    
+    .container.light .port-table .v-data-table__header th {
+        color: #495057 !important;
+        border-right: 1px solid #dee2e6 !important;
+    }
+    
+    .container.light .port-table-container {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+    }
+    
+    .container.light .port-table .v-data-table__footer {
+        background: #f8f9fa !important;
+        border-top: 1px solid #dee2e6 !important;
+    }
+    
+    .container.light .port-table .v-data-table__footer * {
+        color: #495057 !important;
+    }
+    
+    .container.light .port-table .v-data-table__footer .v-pagination button {
+        color: #495057 !important;
+        background: #ffffff !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    .container.light .port-table .v-data-table__footer .v-pagination button:hover {
+        background: #667eea !important;
+        color: white !important;
+    }
+    
+    .container.light .port-table .v-data-table__footer .v-pagination button.v-pagination__item--active {
+        background: #667eea !important;
+        color: white !important;
+    }
+    
+    .container.light .notification {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .container.light .notification-message {
+        color: #495057;
+    }
+    
+    .container.light .notification-close {
+        color: #6c757d;
+    }
+    
+    .container.light .notification-close:hover {
+        background: #f8f9fa;
+        color: #495057;
+    }
+    
+    .container.light .modal-overlay {
+        background: rgba(0, 0, 0, 0.5);
+    }
+    
+    .container.light .modal-content {
+        background: #ffffff !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+    }
+    
+    .container.light .modal-header h2 {
+        color: #495057;
+    }
+    
+    .container.light .modal-header .modal-close {
+        color: #6c757d;
+    }
+    
+    .container.light .modal-header .modal-close:hover {
+        color: #495057;
+    }
+    
+    .container.light .modal-body .detail-label {
+        color: #6c757d;
+    }
+    
+    .container.light .modal-body .detail-value {
+        color: #495057;
+    }
+    
+    .container.light .modal-body .status-active {
+        color: #28a745;
+    }
+    
+    .container.light .modal-body .status-inactive {
+        color: #6c757d;
+    }
+    
+    .container.light .modal-footer {
+        border-top: 1px solid #dee2e6;
+    }
+    
+    .container.light .empty {
+        color: #6c757d;
+    }
+    
+    .container.light .empty h2 {
+        color: #495057;
+    }
+    
+    .container.light .empty p {
+        color: #6c757d;
+    }
+    
+    .container.light .batch-actions {
+        background: #ffffff;
+        border: 1px solid #667eea;
+    }
+    
+    .container.light .selected-count {
+        color: #495057;
+    }
+    
+    .container.light .notification-history-modal {
+        background: #ffffff !important;
+    }
+    
+    .container.light .empty-history {
+        color: #6c757d;
+    }
+    
+    .container.light .notification-history-item {
+        border: 1px solid #dee2e6;
+        background: #ffffff;
+    }
+    
+    .container.light .notification-history-item:hover {
+        background: #f8f9fa;
+        border-color: #dee2e6;
+    }
+    
     .notification-history-modal {
         width: 600px !important;
         max-width: 600px !important;
@@ -1401,6 +1823,7 @@
     {
         await LoadPortsFromCacheAsync();
         _notificationHistory = NotificationService.GetNotificationHistory();
+        await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
     }
 
     private async Task LoadPortsFromCacheAsync()
@@ -1660,9 +2083,10 @@
         StateHasChanged();
     }
 
-    private void ToggleTheme()
+    private async void ToggleTheme()
     {
         ThemeService.ToggleTheme();
+        await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
     }
 
     private void GoToHome()
