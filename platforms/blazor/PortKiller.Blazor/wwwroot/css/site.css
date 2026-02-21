@@ -70,3 +70,22 @@ h1:focus {
     .blazor-error-boundary::after {
         content: "An error has occurred."
     }
+
+/* Animation keyframes for refresh counter */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+.refresh-counter-badge .refresh-icon {
+    animation: spin 2s linear infinite;
+}
+
+.refresh-counter-badge {
+    animation: pulse 2s infinite;
+}

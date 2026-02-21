@@ -72,6 +72,18 @@ public class NotificationService
         });
     }
 
+    public void AddNotification(string type, string icon, string message, string? details = null)
+    {
+        AddNotification(new Notification
+        {
+            Type = type,
+            Icon = icon,
+            Message = message,
+            Details = details,
+            Timestamp = DateTime.Now
+        });
+    }
+
     private void AddNotification(Notification notification)
     {
         _notifications.Enqueue(notification);

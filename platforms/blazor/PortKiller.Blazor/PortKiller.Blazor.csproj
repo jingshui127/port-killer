@@ -9,6 +9,8 @@
   <ItemGroup>
     <PackageReference Include="Masa.Blazor" Version="1.11.9" />
     <PackageReference Include="System.Management" Version="10.0.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
   </ItemGroup>
 
 </Project>

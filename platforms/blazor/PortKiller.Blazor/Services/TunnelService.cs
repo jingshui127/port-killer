@@ -17,6 +17,7 @@ public class TunnelService
     private readonly ConcurrentDictionary<int, bool> _processOutputAttached = new();
     private readonly ILogger<TunnelService>? _logger;
     private readonly SettingsService _settingsService;
+    private readonly NotificationService _notificationService;
     private CloudflaredStatus? _cachedCloudflaredStatus;
     private DateTime _lastCloudflaredCheck = DateTime.MinValue;
 
@@ -63,9 +64,10 @@ public class TunnelService
         return false;
     }
 
-    public TunnelService(ILogger<TunnelService>? logger = null)
+    public TunnelService(ILogger<TunnelService>? logger = null, NotificationService? notificationService = null)
     {
         _logger = logger;
+        _notificationService = notificationService ?? new NotificationService();
         _settingsService = new SettingsService();
     }
 
@@ -238,7 +240,7 @@ public class TunnelService
     public List<CloudflareTunnel> GetTunnels()
     {
         var tunnels = _tunnels.Values.ToList();
-        
+
         // 同步_tunnelUrls字典中的URL到隧道对象
         foreach (var tunnel in tunnels)
         {
@@ -247,8 +249,27 @@ public class TunnelService
                 tunnel.TunnelUrl = url;
             }
         }
-        
+
         return tunnels;
+    }
+
+    public bool HasTunnelForPort(int port)
+    {
+        return _tunnels.ContainsKey(port);
+    }
+
+    public CloudflareTunnel? GetTunnelForPort(int port)
+    {
+        if (_tunnels.TryGetValue(port, out var tunnel))
+        {
+            // 同步URL
+            if (_tunnelUrls.TryGetValue(port, out var url) && !string.IsNullOrEmpty(url))
+            {
+                tunnel.TunnelUrl = url;
+            }
+            return tunnel;
+        }
+        return null;
     }
 
     public Process? GetProcessForPort(int port)
@@ -610,6 +631,8 @@ public class TunnelService
 
         _tunnels.TryRemove(port, out _);
         SaveActiveTunnels();
+        
+        _notificationService?.NotifyTunnelStopped(port);
     }
 
     public void StopAllTunnels()
@@ -701,6 +724,7 @@ public class TunnelService
                     newTunnel.TunnelUrl = _tunnelUrls[port];
                     SaveActiveTunnels();
                     _logger?.LogInformation($"[TunnelService] Tunnel created successfully: {newTunnel.TunnelUrl}");
+                    _notificationService?.NotifyTunnelRestarted(port);
                     return newTunnel;
                 }
                 
@@ -1192,13 +1216,11 @@ public class TunnelService
             var outputBuilder = new System.Text.StringBuilder();
             var errorBuilder = new System.Text.StringBuilder();
             var progress = 20;
-            var hasReceivedOutput = false;
 
             process.OutputDataReceived += (sender, e) =>
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
-                    hasReceivedOutput = true;
                     outputBuilder.AppendLine(e.Data);
                     _logger?.LogInformation($"[Cloudflared Update stdout] {e.Data}");
                     
@@ -1318,12 +1340,19 @@ public class TunnelService
         if (match.Success)
         {
             var url = match.Value;
+            var isNewUrl = !_tunnelUrls.ContainsKey(port) || string.IsNullOrEmpty(_tunnelUrls[port]);
             _tunnelUrls[port] = url;
             
             if (_tunnels.TryGetValue(port, out var tunnel))
             {
                 tunnel.TunnelUrl = url;
                 SaveActiveTunnels();
+                
+                // 新创建的隧道发送通知
+                if (isNewUrl && _notificationService != null)
+                {
+                    _notificationService.NotifyTunnelCreated(port, url);
+                }
             }
         }
 

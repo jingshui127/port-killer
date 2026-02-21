@@ -12,4 +12,5 @@ public class PortInfo
     public bool IsFavorite { get; set; }
     public bool IsWatched { get; set; }
     public string? ProcessType { get; set; }
+    public string Protocol { get; set; } = "TCP"; // TCP 或 UDP
 }
