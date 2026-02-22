@@ -186,6 +186,19 @@ public class PortScannerService
                         {
                             port.FirewallInfo = info;
                         }
+                        
+                        // Linux: 如果没有防火墙信息，根据地址判断方向
+                        #if !WINDOWS
+                        if (port.FirewallInfo == null)
+                        {
+                            var direction = FirewallService.GetDirectionFromAddress(port.Address);
+                            port.FirewallInfo = new PortFirewallInfo
+                            {
+                                AllowInbound = direction == PortAccessDirection.Inbound || direction == PortAccessDirection.Bidirectional,
+                                AllowOutbound = direction == PortAccessDirection.Outbound || direction == PortAccessDirection.Bidirectional
+                            };
+                        }
+                        #endif
                     }
                     
                     XTrace.Log.Debug($"Firewall info loaded for {firewallInfo.Count} ports");

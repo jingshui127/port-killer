@@ -1,6 +1,7 @@
 using NewLife.Log;
 using PortManager.Models;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace PortManager.Services;
@@ -599,8 +600,8 @@ public class FirewallService
     /// </summary>
     private bool IsDefaultInboundAllowed()
     {
-        // Windows 默认入站是阻止的
-        return false;
+        // Windows 默认入站是阻止的，Linux 默认通常是允许的
+        return RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? false : true;
     }
     
     /// <summary>
@@ -608,8 +609,39 @@ public class FirewallService
     /// </summary>
     private bool IsDefaultOutboundAllowed()
     {
-        // Windows 默认出站是允许的
+        // Windows 和 Linux 默认出站都是允许的
         return true;
+    }
+    
+    /// <summary>
+    /// 根据绑定地址判断端口方向（用于 Linux）
+    /// </summary>
+    public static PortAccessDirection GetDirectionFromAddress(string address)
+    {
+        // 空地址或通配符地址表示监听所有接口，是入站
+        if (string.IsNullOrEmpty(address) || 
+            address == "0.0.0.0" || 
+            address == "::" ||
+            address == "*")
+        {
+            return PortAccessDirection.Inbound;
+        }
+        
+        // 本地回环地址
+        if (address == "127.0.0.1" || address == "::1" || address == "localhost")
+        {
+            // 本地通信，通常认为是双向或内部
+            return PortAccessDirection.Bidirectional;
+        }
+        
+        // 特定 IP 地址表示监听特定接口，是入站
+        // 检查是否是有效的 IP 地址
+        if (System.Net.IPAddress.TryParse(address, out _))
+        {
+            return PortAccessDirection.Inbound;
+        }
+        
+        return PortAccessDirection.Unknown;
     }
 }
 
