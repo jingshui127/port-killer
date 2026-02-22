@@ -37,31 +37,30 @@ public class TunnelService
 
     public static bool IsRunningAsAdministrator()
     {
-        if (OperatingSystem.IsWindows())
+#if WINDOWS
+        try
         {
-            try
-            {
-                using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
-                var principal = new System.Security.Principal.WindowsPrincipal(identity);
-                return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
-            }
-            catch
-            {
-                return false;
-            }
+            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var principal = new System.Security.Principal.WindowsPrincipal(identity);
+            return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
         }
-        else if (OperatingSystem.IsLinux())
+        catch
         {
-            try
-            {
-                return System.Environment.UserName == "root" || System.Environment.GetEnvironmentVariable("USER") == "root";
-            }
-            catch
-            {
-                return false;
-            }
+            return false;
         }
-        return false;
+#else
+        // Linux: 检查是否为 root 用户
+        try
+        {
+            return Environment.UserName == "root" || 
+                   Environment.GetEnvironmentVariable("USER") == "root" ||
+                   File.Exists("/proc/1/status") && File.ReadAllText("/proc/1/status").Contains("Uid:\t0");
+        }
+        catch
+        {
+            return false;
+        }
+#endif
     }
 
     public TunnelService(SettingsService settingsService, ILogger<TunnelService>? logger = null, NotificationService? notificationService = null)
@@ -402,19 +401,14 @@ public class TunnelService
 
     public string? GetProcessCommandLine(int processId)
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return GetProcessCommandLineWindows(processId);
-        }
-        else if (OperatingSystem.IsLinux())
-        {
-            return GetProcessCommandLineLinux(processId);
-        }
-        
-        return null;
+#if WINDOWS
+        return GetProcessCommandLineWindows(processId);
+#else
+        return GetProcessCommandLineLinux(processId);
+#endif
     }
 
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+#if WINDOWS
     private string? GetProcessCommandLineWindows(int processId)
     {
         try
@@ -434,8 +428,8 @@ public class TunnelService
             return null;
         }
     }
+#endif
 
-    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
     private string? GetProcessCommandLineLinux(int processId)
     {
         try

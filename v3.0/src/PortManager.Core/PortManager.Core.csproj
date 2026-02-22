@@ -13,8 +13,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.0.2025.201" />
-    <PackageReference Include="System.Management" Version="10.0.0" />
+    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.7.2026.201" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <PackageReference Include="System.Management" Version="10.0.3" />
   </ItemGroup>
 
 </Project>

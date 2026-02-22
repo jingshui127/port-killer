@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 
 namespace PortManager.Services;
 
@@ -464,7 +465,8 @@ public class PortScannerService
                 }
             }
             
-            // 尝试使用 WMI 获取进程路径信息（可选，如果慢可以注释掉）
+            // 尝试使用 WMI (Windows) 或 /proc (Linux) 获取进程路径信息
+#if WINDOWS
             try
             {
                 var wmiQuery = new System.Management.ManagementObjectSearcher(
@@ -486,6 +488,34 @@ public class PortScannerService
             {
                 // WMI 查询失败，使用已有信息
             }
+#else
+            // Linux: 从 /proc/[pid]/exe 读取进程路径
+            try
+            {
+                foreach (var pid in result.Keys.ToList())
+                {
+                    try
+                    {
+                        var exePath = $"/proc/{pid}/exe";
+                        if (File.Exists(exePath))
+                        {
+                            // 读取符号链接目标
+                            var path = ReadLink(exePath);
+                            if (!string.IsNullOrEmpty(path))
+                            {
+                                var existing = result[pid];
+                                result[pid] = (existing.ProcessName, path, existing.UserName);
+                            }
+                        }
+                    }
+                    catch { /* 忽略单个进程的错误 */ }
+                }
+            }
+            catch (Exception ex)
+            {
+                XTrace.Log.Debug($"Error reading /proc for process paths: {ex.Message}");
+            }
+#endif
         }
         catch (Exception ex)
         {
@@ -687,6 +717,7 @@ public class PortScannerService
     /// </summary>
     private string GetProcessUserName(Process process)
     {
+#if WINDOWS
         try
         {
             // 使用 WMI 查询获取进程的用户名
@@ -717,8 +748,81 @@ public class PortScannerService
         {
             XTrace.Log.Debug($"Error getting process user name: {ex.Message}");
         }
+#else
+        // Linux: 从 /proc/[pid]/status 读取进程用户
+        try
+        {
+            var statusPath = $"/proc/{process.Id}/status";
+            if (File.Exists(statusPath))
+            {
+                var lines = File.ReadAllLines(statusPath);
+                var uidLine = lines.FirstOrDefault(l => l.StartsWith("Uid:"));
+                if (uidLine != null)
+                {
+                    var parts = uidLine.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2 && int.TryParse(parts[1], out var uid))
+                    {
+                        // 尝试将 UID 转换为用户名
+                        try
+                        {
+                            var userInfo = File.ReadAllText("/etc/passwd")
+                                .Split('\n')
+                                .Select(line => line.Split(':'))
+                                .FirstOrDefault(parts => parts.Length >= 3 && parts[2] == uid.ToString());
+                            
+                            if (userInfo != null)
+                            {
+                                return userInfo[0]; // 用户名
+                            }
+                        }
+                        catch { }
+                        
+                        return uid.ToString();
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Debug($"Error getting process user name on Linux: {ex.Message}");
+        }
+#endif
         
         return Environment.UserName;
     }
+
+#if !WINDOWS
+    /// <summary>
+    /// 读取符号链接目标路径 (Linux)
+    /// </summary>
+    private static string? ReadLink(string linkPath)
+    {
+        try
+        {
+            // 使用 readlink 命令
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "readlink",
+                    Arguments = $"-f \"{linkPath}\"",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            
+            process.Start();
+            var result = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExit();
+            
+            return string.IsNullOrEmpty(result) ? null : result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+#endif
 }
 

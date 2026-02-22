@@ -36,18 +36,21 @@ partial class MainForm
         blazorWebView1.Dock = DockStyle.Fill;
         blazorWebView1.Location = new Point(0, 0);
         blazorWebView1.Name = "blazorWebView1";
-        blazorWebView1.Size = new Size(800, 450);
+        blazorWebView1.Size = new Size(1400, 900);
         blazorWebView1.TabIndex = 0;
         blazorWebView1.Text = "blazorWebView1";
+        blazorWebView1.Margin = new Padding(0);
         // 
         // MainForm
         // 
         AutoScaleDimensions = new SizeF(7F, 17F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(1200, 800);
+        ClientSize = new Size(1400, 900);
+        MinimumSize = new Size(1200, 700);
         Controls.Add(blazorWebView1);
         Name = "MainForm";
         Text = "PortManager 端口管理器";
+        WindowState = FormWindowState.Maximized;
         ResumeLayout(false);
     }
 

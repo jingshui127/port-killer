@@ -21,7 +21,7 @@
 
   <ItemGroup>
     <PackageReference Include="Masa.Blazor" Version="1.11.9" />
-    <PackageReference Include="System.Management" Version="10.0.0" />
+    <PackageReference Include="System.Management" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup>
