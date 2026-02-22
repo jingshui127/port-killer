@@ -1,10 +1,10 @@
-# PortKiller Blazor Web Version
+# PortManager Blazor Web Version
 
 A powerful cross-platform port management web application built with Blazor Server. Monitor ports, manage Cloudflare Tunnels, and control processes from your browser.
 
 ## About
 
-PortKiller Blazor Web Version is developed by 科控物联. It provides a web-based interface for developers to monitor, manage, and control network ports, processes, and Cloudflare Tunnels across Windows, macOS, and Linux operating systems.
+PortManager Blazor Web Version is developed by 科控物联. It provides a web-based interface for developers to monitor, manage, and control network ports, processes, and Cloudflare Tunnels across Windows, macOS, and Linux operating systems.
 
 **中文用户支持：科控物联 | QQ: 2492123056**
 

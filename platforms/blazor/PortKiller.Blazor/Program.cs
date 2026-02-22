@@ -1,27 +1,22 @@
-using PortKiller.Blazor.Data;
+using NewLife.Log;
 using PortKiller.Blazor.Services;
-using Serilog;
 
-// 配置 Serilog
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Debug()
-    .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss}] [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
-    .CreateLogger();
+// 配置 NewLife XTrace 日志
+XTrace.UseConsole();
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.UseSerilog();
+
+// 添加星尘服务
+builder.Services.AddStardust("http://47.113.219.65:6600", "PortManager", null);
 
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddMasaBlazor();
 builder.Services.AddHttpClient();
 builder.Services.AddControllers();
-builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<NotificationService>();
+builder.Services.AddSingleton<FirewallService>();
 builder.Services.AddSingleton<PortScannerService>();
 builder.Services.AddSingleton<TunnelService>();
 builder.Services.AddScoped<ThemeService>();
@@ -48,15 +43,11 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+// 使用星尘服务
+app.UseStardust();
+
 app.MapControllers();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
-try
-{
-    app.Run();
-}
-finally
-{
-    Log.CloseAndFlush();
-}
+app.Run();

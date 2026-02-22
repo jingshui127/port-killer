@@ -79,7 +79,7 @@ public class NotificationService
             Type = type,
             Icon = icon,
             Message = message,
-            Details = details,
+            Details = details ?? string.Empty,
             Timestamp = DateTime.Now
         });
     }

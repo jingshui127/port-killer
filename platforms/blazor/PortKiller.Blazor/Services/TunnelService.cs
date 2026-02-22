@@ -64,11 +64,11 @@ public class TunnelService
         return false;
     }
 
-    public TunnelService(ILogger<TunnelService>? logger = null, NotificationService? notificationService = null)
+    public TunnelService(SettingsService settingsService, ILogger<TunnelService>? logger = null, NotificationService? notificationService = null)
     {
         _logger = logger;
         _notificationService = notificationService ?? new NotificationService();
-        _settingsService = new SettingsService();
+        _settingsService = settingsService;
     }
 
     public async Task InitializeAsync()
@@ -81,11 +81,18 @@ public class TunnelService
             
             if (existingProcess != null)
             {
+                // 检查保存的URL是否有效，如果没有则尝试从字典获取
+                var tunnelUrl = savedTunnel.TunnelUrl;
+                if (string.IsNullOrEmpty(tunnelUrl) || tunnelUrl == "Unknown")
+                {
+                    tunnelUrl = _tunnelUrls.GetValueOrDefault(savedTunnel.Port, string.Empty);
+                }
+                
                 var tunnel = new CloudflareTunnel
                 {
                     Port = savedTunnel.Port,
                     Status = "Active",
-                    TunnelUrl = savedTunnel.TunnelUrl,
+                    TunnelUrl = tunnelUrl,
                     ProcessId = existingProcess.Id,
                     StartTime = existingProcess.StartTime,
                     TunnelName = savedTunnel.TunnelName
@@ -93,7 +100,7 @@ public class TunnelService
                 
                 _tunnels[tunnel.Port] = tunnel;
                 _tunnelProcesses[tunnel.Port] = existingProcess;
-                _tunnelUrls[tunnel.Port] = savedTunnel.TunnelUrl;
+                _tunnelUrls[tunnel.Port] = tunnelUrl;
                 
                 // 为现有进程设置输出读取，以便捕获URL更新（只附加一次）
                 if (!_processOutputAttached.ContainsKey(savedTunnel.Port))
@@ -244,9 +251,14 @@ public class TunnelService
         // 同步_tunnelUrls字典中的URL到隧道对象
         foreach (var tunnel in tunnels)
         {
-            if (_tunnelUrls.TryGetValue(tunnel.Port, out var url) && !string.IsNullOrEmpty(url))
+            if (_tunnelUrls.TryGetValue(tunnel.Port, out var url) && !string.IsNullOrEmpty(url) && url != "Unknown")
             {
                 tunnel.TunnelUrl = url;
+            }
+            // 如果隧道对象有有效URL但字典中没有，同步到字典
+            else if (!string.IsNullOrEmpty(tunnel.TunnelUrl) && tunnel.TunnelUrl != "Unknown")
+            {
+                _tunnelUrls[tunnel.Port] = tunnel.TunnelUrl;
             }
         }
 
@@ -654,7 +666,15 @@ public class TunnelService
     public void SaveActiveTunnels()
     {
         var activeTunnels = _tunnels.Values.ToList();
+        
+        // 调试日志：记录保存的隧道信息
+        foreach (var tunnel in activeTunnels)
+        {
+            _logger?.LogInformation($"[TunnelService] Saving tunnel - Port: {tunnel.Port}, URL: {tunnel.TunnelUrl}, Status: {tunnel.Status}");
+        }
+        
         _settingsService.SaveActiveTunnels(activeTunnels);
+        _logger?.LogInformation($"[TunnelService] Saved {activeTunnels.Count} tunnels to settings");
     }
 
     public async Task<CloudflareTunnel> RestartTunnelAsync(int port)
@@ -813,15 +833,21 @@ public class TunnelService
                                 {
                                     var existingTunnel = _tunnels.Values.FirstOrDefault(t => t.Port == port);
                                     
-                                    // 尝试从保存的设置中恢复URL
+                                    // 尝试从保存的设置中恢复URL（优先使用有效的URL）
                                     string tunnelUrl = string.Empty;
                                     string tunnelName = $"Tunnel-{port}";
                                     if (savedTunnelsDict.TryGetValue(port, out var savedTunnel))
                                     {
-                                        tunnelUrl = savedTunnel.TunnelUrl;
                                         tunnelName = savedTunnel.TunnelName ?? tunnelName;
+                                        // 只使用有效的URL
+                                        if (!string.IsNullOrEmpty(savedTunnel.TunnelUrl) && savedTunnel.TunnelUrl != "Unknown")
+                                        {
+                                            tunnelUrl = savedTunnel.TunnelUrl;
+                                        }
                                     }
-                                    else if (_tunnelUrls.ContainsKey(port))
+                                    
+                                    // 如果保存的URL无效，尝试从内存字典获取
+                                    if (string.IsNullOrEmpty(tunnelUrl) && _tunnelUrls.ContainsKey(port))
                                     {
                                         tunnelUrl = _tunnelUrls[port];
                                     }
@@ -1095,7 +1121,7 @@ public class TunnelService
         try
         {
             using var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.Add("User-Agent", "PortKiller");
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "PortManager");
             
             var response = await httpClient.GetStringAsync("https://api.github.com/repos/cloudflare/cloudflared/releases/latest");
             

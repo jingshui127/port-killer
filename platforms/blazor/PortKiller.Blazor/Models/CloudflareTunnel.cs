@@ -13,4 +13,9 @@ public class CloudflareTunnel
     public string Uptime { get; set; } = string.Empty;
     public string TunnelName { get; set; } = string.Empty;
     public bool IsActive => Status == "Active" && TunnelUrl != "Unknown";
+    
+    // 链接健康状态（不保存到JSON，运行时检测）
+    public string LinkStatus { get; set; } = "Unknown"; // Unknown, Checking, Online, Offline, Error
+    public string? LinkStatusMessage { get; set; }
+    public DateTime? LastChecked { get; set; }
 }

@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using PortKiller.Blazor.Models;
+using Microsoft.Extensions.Logging;
 
 namespace PortKiller.Blazor.Services;
 
@@ -11,15 +12,18 @@ public class SettingsService
     private const string AppName = "PortKiller.Blazor";
     private const string SettingsFileName = "settings.json";
     private readonly string _settingsPath;
+    private readonly ILogger<SettingsService>? _logger;
 
-    public SettingsService()
+    public SettingsService(ILogger<SettingsService>? logger = null)
     {
+        _logger = logger;
         var appDataPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             AppName);
         
         Directory.CreateDirectory(appDataPath);
         _settingsPath = Path.Combine(appDataPath, SettingsFileName);
+        _logger?.LogInformation($"[SettingsService] Settings path: {_settingsPath}");
     }
 
     private class SettingsData
@@ -36,11 +40,13 @@ public class SettingsService
             if (File.Exists(_settingsPath))
             {
                 var json = File.ReadAllText(_settingsPath);
+                _logger?.LogDebug($"[SettingsService] Loaded JSON content: {json}");
                 return JsonSerializer.Deserialize<SettingsData>(json) ?? new SettingsData();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogError($"[SettingsService] Error loading settings: {ex.Message}");
         }
         return new SettingsData();
     }
@@ -51,9 +57,11 @@ public class SettingsService
         {
             var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(_settingsPath, json);
+            _logger?.LogDebug($"[SettingsService] Saved JSON content: {json}");
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogError($"[SettingsService] Error saving settings: {ex.Message}");
         }
     }
 
@@ -86,7 +94,15 @@ public class SettingsService
     public List<CloudflareTunnel> GetActiveTunnels()
     {
         var data = LoadSettingsData();
-        return data.ActiveTunnels ?? new List<CloudflareTunnel>();
+        var tunnels = data.ActiveTunnels ?? new List<CloudflareTunnel>();
+        
+        _logger?.LogInformation($"[SettingsService] Loaded {tunnels.Count} tunnels from settings");
+        foreach (var tunnel in tunnels)
+        {
+            _logger?.LogInformation($"[SettingsService] Loaded tunnel - Port: {tunnel.Port}, URL: {tunnel.TunnelUrl}, Status: {tunnel.Status}");
+        }
+        
+        return tunnels;
     }
 
     public void SaveActiveTunnels(List<CloudflareTunnel> tunnels)
@@ -94,6 +110,8 @@ public class SettingsService
         var data = LoadSettingsData();
         data.ActiveTunnels = tunnels;
         SaveSettingsData(data);
+        
+        _logger?.LogInformation($"[SettingsService] Saved {tunnels.Count} tunnels to settings file");
     }
 
     public void ClearAllSettings()

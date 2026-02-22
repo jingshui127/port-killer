@@ -1,7 +1,7 @@
 @page "/ports"
+@using NewLife.Log
 @using PortKiller.Blazor.Services
 @using PortKiller.Blazor.Models
-@using Microsoft.Extensions.Logging
 @using Masa.Blazor
 @using System.Text
 @using System.IO
@@ -9,10 +9,10 @@
 @inject PortScannerService PortScanner
 @inject NavigationManager Navigation
 @inject ThemeService ThemeService
-@inject ILogger<Ports> Logger
 @inject TunnelService TunnelService
 @inject NotificationService NotificationService
 @inject IJSRuntime JSRuntime
+@inject FirewallService FirewallService
 
 <PageTitle>端口管理</PageTitle>
 
@@ -31,14 +31,21 @@
         <MRow Dense>
             <MCol Cols="12" Class="text-center">
                 <div class="status-group-inline">
+                    @if (_autoRefreshEnabled)
+                    {
+                        <div class="status-badge auto-refresh-badge" title="自动刷新已开启">
+                            <span class="pulse-dot"></span>
+                            <span class="value">自动</span>
+                        </div>
+                    }
                     @if (_lastRefreshTime > DateTime.MinValue)
                     {
                         <div class="status-badge time-badge" title="最后刷新时间">
-                            <span class="icon">🕐</span>
+                            <span class="icon @(_isLoading || _isRefreshing || _refreshProgressTimer != null ? "spin" : "")">🕐</span>
                             <span class="value">@GetLastRefreshTimeText()</span>
                         </div>
                     }
-                    @if (_isRefreshing)
+                    @if (_isLoading || _isRefreshing || _refreshProgressTimer != null)
                     {
                         <div class="status-badge duration-badge active" title="刷新中...">
                             <span class="icon spin">⏱</span>
@@ -148,10 +155,16 @@
             <button class="clear-range-btn" @onclick="ClearPortRange" title="清除范围">✕</button>
         </div>
 
-        <button class="export-btn" @onclick="ExportToCsv" title="导出CSV">
-            <span class="icon">📊</span>
-            <text>导出</text>
-        </button>
+        <div class="export-group">
+            <button class="export-btn" @onclick="ExportToCsv" title="导出CSV">
+                <span class="icon">📊</span>
+                <text>CSV</text>
+            </button>
+            <button class="export-btn" @onclick="ExportToJson" title="导出JSON">
+                <span class="icon">📋</span>
+                <text>JSON</text>
+            </button>
+        </div>
     </div>
 
     <!-- 端口统计面板 -->
@@ -243,6 +256,7 @@
                         <tr>
                             <th>端口</th>
                             <th>协议</th>
+                            <th>方向</th>
                             <th>进程名</th>
                             <th>说明</th>
                             <th>命令</th>
@@ -287,6 +301,9 @@
                                     }
                                 </td>
                                 <td>
+                                    @GetAccessDirectionBadge(primaryPort.AccessDirection)
+                                </td>
+                                <td>
                                     @(primaryPort?.ProcessName ?? "Unknown")
                                     @if (primaryPort != null && IsSystemService(primaryPort.ProcessName))
                                     {
@@ -311,10 +328,19 @@
                                         }
                                     }
                                 </td>
-                                <td>@primaryPort.Command</td>
-                                <td>@primaryPort.Address</td>
-                                <td>@primaryPort.User</td>
-                                <td>@primaryPort.Pid</td>
+                                <td>@(primaryPort?.Command ?? "-")</td>
+                                <td>@(primaryPort?.Address ?? "-")</td>
+                                <td>@(primaryPort?.User ?? "-")</td>
+                                <td>
+                                    @if (primaryPort?.Pid > 0)
+                                    {
+                                        <span>@primaryPort.Pid</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted" title="系统进程或无法获取">-</span>
+                                    }
+                                </td>
                                 <td>
                                     <div class="table-actions" @onclick:stopPropagation>
                                         <button class="btn-icon @(primaryPort.IsFavorite ? "favorite" : "")" @onclick="@(() => ToggleFavorite(portNumber))" title="收藏">
@@ -357,12 +383,15 @@
                     var hasBoth = hasTcp && hasUdp;
                     var hasTunnel = TunnelService.HasTunnelForPort(portNumber);
 
+                    var isSystemProcess = primaryPort != null && IsSystemService(primaryPort.ProcessName);
+                    var portStatusClass = isSystemProcess ? "protected" : (primaryPort?.Pid > 0 ? "occupied" : "available");
+
                     <div class="port-card @((primaryPort?.IsActive ?? false) ? "active" : "") @(_selectedPorts.Contains(portNumber) ? "selected" : "") @(hasTunnel ? "has-tunnel" : "")" @onclick="@(() => TogglePortSelection(portNumber, !_selectedPorts.Contains(portNumber)))">
                         <div class="port-info">
                             <div class="port-header">
                                 <div class="port-number">
-                                    <span class="label">端口</span>
-                                    <span class="value">@portNumber</span>
+                                    <span class="status-dot @portStatusClass" title="@(isSystemProcess ? "系统进程（受保护）" : (primaryPort?.Pid > 0 ? "端口被占用" : "端口可用"))"></span>
+                                    <span class="value" title="@GetPortUsageDescription(portNumber)">@portNumber</span>
                                     @if (hasTunnel)
                                     {
                                         <span class="tunnel-badge" title="已创建隧道">🌐</span>
@@ -379,10 +408,15 @@
                                     {
                                         <span class="protocol-badge udp">UDP</span>
                                     }
+                                    @GetAccessDirectionArrow(primaryPort.AccessDirection)
                                 </div>
-                                <div class="port-pid" title="PID: @(primaryPort?.Pid ?? 0)">
-                                    <span class="icon">🔢</span>
-                                    <span class="text">@(primaryPort?.Pid ?? 0)</span>
+                                <div class="port-pid" title="@(primaryPort?.Pid > 0 ? $"PID: {primaryPort.Pid}" : "系统进程或无法获取")">
+                                    @if (isSystemProcess)
+                                    {
+                                        <span class="protected-badge" title="系统进程（受保护）">🛡️</span>
+                                    }
+                                    <span class="icon">@(primaryPort?.Pid > 0 ? "🔢" : "💻")</span>
+                                    <span class="text">@(primaryPort?.Pid > 0 ? primaryPort.Pid.ToString() : "-")</span>
                                 </div>
                             </div>
                             <div class="port-details">
@@ -395,21 +429,22 @@
                                             <span class="system-service-badge" title="@GetSystemServiceDescription(primaryPort.ProcessName)">🛡️</span>
                                         }
                                     </div>
-                                    <div class="detail" title="@primaryPort.Command">
+                                    <div class="detail" title="@(primaryPort?.Command ?? "-")">
                                         <span class="icon">📁</span>
-                                        <span class="text text-truncate">@primaryPort.Command</span>
+                                        <span class="text text-truncate">@(primaryPort?.Command ?? "-")</span>
                                     </div>
                                 </div>
                                 <div class="detail-row">
-                                    <div class="detail" title="@primaryPort.Address">
+                                    <div class="detail" title="@(primaryPort?.Address ?? "-")">
                                         <span class="icon">📍</span>
-                                        <span class="text text-truncate">@primaryPort.Address</span>
+                                        <span class="text text-truncate">@(primaryPort?.Address ?? "-")</span>
                                     </div>
-                                    <div class="detail" title="@primaryPort.User">
+                                    <div class="detail" title="@(primaryPort?.User ?? "-")">
                                         <span class="icon">👤</span>
-                                        <span class="text">@primaryPort.User</span>
+                                        <span class="text">@(primaryPort?.User ?? "-")</span>
                                     </div>
                                 </div>
+
                             </div>
                         </div>
                         <div class="port-actions">
@@ -439,55 +474,97 @@
 
 @if (_showPortDetailsModal && _selectedPort != null)
 {
+    var processDetails = GetProcessDetails(_selectedPort.Pid);
+    var isSystemProcess = IsSystemService(_selectedPort.ProcessName);
+    var canKill = _selectedPort.Pid > 4 && !isSystemProcess;
+
     <div class="modal-overlay" @onclick="ClosePortDetailsModal">
-        <div class="modal-content" @onclick:stopPropagation>
+        <div class="modal-content port-details-modal" @onclick:stopPropagation>
             <div class="modal-header">
-                <h2>端口详情</h2>
+                <h2><span class="icon">📋</span> 进程详情</h2>
                 <button class="modal-close" @onclick="ClosePortDetailsModal">✕</button>
             </div>
             <div class="modal-body">
-                <div class="detail-row">
-                    <span class="detail-label">端口:</span>
-                    <span class="detail-value">@_selectedPort.Port</span>
+                <div class="detail-section">
+                    <div class="detail-row">
+                        <span class="detail-label">端口</span>
+                        <span class="detail-value">@_selectedPort.Port</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">协议</span>
+                        <span class="detail-value">@_selectedPort.Protocol</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">PID</span>
+                        <span class="detail-value">@_selectedPort.Pid @(isSystemProcess ? "🛡️" : "")</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">进程</span>
+                        <span class="detail-value">@_selectedPort.ProcessName</span>
+                    </div>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">进程名:</span>
-                    <span class="detail-value">@_selectedPort.ProcessName</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">地址:</span>
-                    <span class="detail-value">@_selectedPort.Address</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">用户:</span>
-                    <span class="detail-value">@_selectedPort.User</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">PID:</span>
-                    <span class="detail-value">@_selectedPort.Pid</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">命令:</span>
-                    <span class="detail-value detail-value-full">@_selectedPort.Command</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">状态:</span>
-                    <span class="detail-value @(_selectedPort.IsActive ? "status-active" : "status-inactive")">@(_selectedPort.IsActive ? "活动" : "非活动")</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">收藏:</span>
-                    <span class="detail-value">@(_selectedPort.IsFavorite ? "是" : "否")</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">监控:</span>
-                    <span class="detail-value">@(_selectedPort.IsWatched ? "是" : "否")</span>
+
+                @if (!string.IsNullOrEmpty(_selectedPort.Command))
+                {
+                    <div class="detail-section">
+                        <div class="detail-label">路径</div>
+                        <div class="path-box" title="@_selectedPort.Command">@_selectedPort.Command</div>
+                    </div>
+                }
+
+                @if (processDetails != null)
+                {
+                    <div class="detail-section">
+                        <div class="detail-row">
+                            <span class="detail-label">内存</span>
+                            <span class="detail-value">@FormatMemory(processDetails.MemoryKB)</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">CPU</span>
+                            <span class="detail-value @GetCpuClass(processDetails.CpuPercent)">@processDetails.CpuPercent.ToString("F1")%</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">优先级</span>
+                            <span class="detail-value">@processDetails.Priority</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">启动时间</span>
+                            <span class="detail-value">@processDetails.StartTime</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">子进程</span>
+                            <span class="detail-value">@processDetails.ChildrenCount processes</span>
+                        </div>
+                    </div>
+                }
+
+                <div class="detail-section">
+                    <div class="detail-row">
+                        <span class="detail-label">状态</span>
+                        <span class="detail-value @GetStatusClass(processDetails?.ProcessStatus)">
+                            @GetStatusText(processDetails?.ProcessStatus, canKill)
+                        </span>
+                    </div>
                 </div>
             </div>
+
+            <div class="modal-actions">
+                @if (!string.IsNullOrEmpty(_selectedPort.Command))
+                {
+                    <button class="action-btn" @onclick="@(() => { _ = OpenProcessFolder(_selectedPort.Command); })">
+                        <span class="icon">📁</span> 打开文件夹
+                    </button>
+                }
+                <button class="action-btn" @onclick="@(() => { _ = OpenTaskManager(_selectedPort.Pid); })">
+                    <span class="icon">📊</span> 任务管理器
+                </button>
+            </div>
+
             <div class="modal-footer">
                 <button class="btn btn-primary" @onclick="@(() => { var port = _selectedPort?.Port ?? 0; ClosePortDetailsModal(); _ = CreateTunnelForPort(port); })">
                     <span class="icon">🌐</span> 创建隧道
                 </button>
-                <button class="btn btn-danger" @onclick="@(() => { var port = _selectedPort?.Port ?? 0; ClosePortDetailsModal(); KillPort(port); })">
+                <button class="btn btn-danger" @onclick="@(() => { var port = _selectedPort?.Port ?? 0; ClosePortDetailsModal(); KillPort(port); })" disabled="@(!canKill)">
                     <span class="icon">✕</span> 终止进程
                 </button>
             </div>
@@ -984,19 +1061,24 @@
         align-items: center;
         justify-content: space-between;
         margin-bottom: 16px;
+        gap: 12px;
     }
     
     .port-number {
         display: flex;
         align-items: center;
         gap: 8px;
+        flex-wrap: nowrap;
+        white-space: nowrap;
     }
-    
+
     .port-number .label {
         font-size: 12px;
         color: #a0a0a0;
         text-transform: uppercase;
         letter-spacing: 1px;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
     
     .port-number .value {
@@ -1179,6 +1261,158 @@
     .protocol-badge.udp {
         background: rgba(255, 152, 0, 0.2);
         color: #ff9800;
+    }
+
+    /* 出入站箭头样式 */
+    .access-arrow {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 6px;
+        font-size: 14px;
+        font-weight: bold;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+    }
+
+    .access-arrow.bidirectional {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+
+    .access-arrow.inbound {
+        background: rgba(33, 150, 243, 0.2);
+        color: #2196f3;
+    }
+
+    .access-arrow.outbound {
+        background: rgba(255, 152, 0, 0.2);
+        color: #ff9800;
+    }
+
+    .access-arrow.blocked {
+        background: rgba(244, 67, 54, 0.2);
+        color: #f44336;
+    }
+
+    .access-arrow.unknown {
+        background: rgba(158, 158, 158, 0.2);
+        color: #9e9e9e;
+    }
+
+    /* 脉冲动画点 */
+    .pulse-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #4caf50;
+        margin-right: 6px;
+        animation: pulse-dot-animation 1.5s ease-in-out infinite;
+    }
+
+    @@keyframes pulse-dot-animation {
+        0% {
+            transform: scale(0.8);
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+        }
+        70% {
+            transform: scale(1);
+            opacity: 0.7;
+            box-shadow: 0 0 0 6px rgba(76, 175, 80, 0);
+        }
+        100% {
+            transform: scale(0.8);
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+        }
+    }
+
+    /* 自动刷新徽章 */
+    .status-badge.auto-refresh-badge {
+        background: rgba(76, 175, 80, 0.15);
+        color: #4caf50;
+        border: 1px solid rgba(76, 175, 80, 0.3);
+    }
+
+    /* 端口状态指示器 */
+    .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+        flex-shrink: 0;
+    }
+
+    .status-dot.occupied {
+        background: #f44336;
+        box-shadow: 0 0 4px rgba(244, 67, 54, 0.5);
+    }
+
+    .status-dot.available {
+        background: #4caf50;
+        box-shadow: 0 0 4px rgba(76, 175, 80, 0.5);
+    }
+
+    .status-dot.protected {
+        background: #ff9800;
+        box-shadow: 0 0 4px rgba(255, 152, 0, 0.5);
+    }
+
+    /* 受保护标识 */
+    .protected-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 4px;
+        font-size: 12px;
+        cursor: help;
+    }
+
+    /* 导出按钮组 */
+    .export-group {
+        display: flex;
+        gap: 8px;
+    }
+
+    .access-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .access-badge.bidirectional {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+
+    .access-badge.inbound {
+        background: rgba(33, 150, 243, 0.2);
+        color: #2196f3;
+    }
+
+    .access-badge.outbound {
+        background: rgba(255, 152, 0, 0.2);
+        color: #ff9800;
+    }
+
+    .access-badge.blocked {
+        background: rgba(244, 67, 54, 0.2);
+        color: #f44336;
+    }
+
+    .access-badge.unknown {
+        background: rgba(158, 158, 158, 0.2);
+        color: #9e9e9e;
     }
 
     .protocol-badge.both {
@@ -1886,13 +2120,195 @@
     .detail-value.status-inactive {
         color: #e74c3c;
     }
-    
+
+    .detail-value.status-killable {
+        color: #2ecc71;
+        font-weight: 600;
+    }
+
+    .detail-value.status-protected {
+        color: #ff9800;
+        font-weight: 600;
+    }
+
+    /* CPU 使用率样式 */
+    .detail-value.cpu-high {
+        color: #f44336;
+        font-weight: 600;
+    }
+
+    .detail-value.cpu-medium {
+        color: #ff9800;
+        font-weight: 600;
+    }
+
+    .detail-value.cpu-low {
+        color: #2ecc71;
+    }
+
+    /* 进程状态样式 */
+    .detail-value.status-running {
+        color: #2ecc71;
+        font-weight: 600;
+    }
+
+    .detail-value.status-not-responding {
+        color: #f44336;
+        font-weight: 600;
+    }
+
+    .detail-value.status-exited {
+        color: #9e9e9e;
+    }
+
+    .detail-value.status-unknown {
+        color: #9e9e9e;
+    }
+
+    /* 进程详情弹窗样式 - 紧凑布局 */
+    .port-details-modal {
+        max-width: 380px;
+    }
+
+    .port-details-modal .modal-header {
+        padding: 12px 16px;
+    }
+
+    .port-details-modal .modal-header h2 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 16px;
+    }
+
+    .port-details-modal .modal-body {
+        padding: 12px 16px;
+        max-height: calc(90vh - 140px);
+    }
+
+    .detail-section {
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #353535;
+    }
+
+    .detail-section:last-of-type {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .port-details-modal .detail-row {
+        padding: 6px 0;
+    }
+
+    .port-details-modal .detail-label {
+        font-size: 13px;
+    }
+
+    .port-details-modal .detail-value {
+        font-size: 13px;
+    }
+
+    .path-box {
+        background: #2a2a2a;
+        border: 1px solid #353535;
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #a0a0a0;
+        word-break: break-all;
+        margin-top: 6px;
+        font-family: 'Consolas', 'Monaco', monospace;
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 8px;
+        padding: 0 16px 10px;
+        border-bottom: 1px solid #353535;
+    }
+
+    .action-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px 12px;
+        background: linear-gradient(135deg, #3a3a3a 0%, #2d2d2d 100%);
+        border: 1px solid #404040;
+        border-radius: 6px;
+        color: #e0e0e0;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .action-btn:hover {
+        background: linear-gradient(135deg, #404040 0%, #333333 100%);
+        border-color: #667eea;
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(102, 126, 234, 0.2);
+    }
+
+    .action-btn .icon {
+        font-size: 12px;
+    }
+
+    .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        filter: grayscale(0.5);
+    }
+
     .modal-footer {
         display: flex;
-        gap: 12px;
+        gap: 8px;
         justify-content: flex-end;
-        padding: 20px;
+        padding: 12px 16px;
         border-top: 1px solid #353535;
+    }
+
+    .port-details-modal .modal-footer {
+        padding: 10px 16px;
+    }
+
+    .port-details-modal .modal-footer .btn {
+        padding: 8px 14px;
+        font-size: 12px;
+        font-weight: 600;
+        border: none;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+    }
+
+    /* 创建隧道按钮 - 蓝紫渐变 */
+    .port-details-modal .modal-footer .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    .port-details-modal .modal-footer .btn-primary:hover:not(:disabled) {
+        background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        transform: translateY(-1px);
+    }
+
+    /* 终止进程按钮 - 红色渐变 */
+    .port-details-modal .modal-footer .btn-danger {
+        background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+    }
+
+    .port-details-modal .modal-footer .btn-danger:hover:not(:disabled) {
+        background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+        box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+        transform: translateY(-1px);
     }
     
     .container.light .btn {
@@ -2550,11 +2966,11 @@
     private System.Timers.Timer? _refreshProgressTimer;
     private DateTime _currentRefreshStartTime;
     private bool _autoRefreshEnabled = true;
-    private int _refreshInterval = 15; // 秒，根据实际扫描时间调整
+    private int _refreshInterval = 30; // 秒，根据实际扫描时间调整
     private int _refreshCount = 0;
     private DateTime _lastRefreshTime = DateTime.MinValue;
     private TimeSpan _lastRefreshDuration = TimeSpan.Zero;
-    private readonly TimeSpan _minRefreshInterval = TimeSpan.FromSeconds(2); // 最小刷新间隔，避免刷新过于频繁
+    private readonly TimeSpan _minRefreshInterval = TimeSpan.FromSeconds(10); // 最小刷新间隔，避免刷新过于频繁
     private bool _isDisposed = false; // 防止在 Dispose 后继续执行
 
     protected override async Task OnInitializedAsync()
@@ -2565,14 +2981,47 @@
 
         // 订阅主题变更事件
         ThemeService.OnThemeChanged += OnThemeChanged;
+
+        // 订阅防火墙规则缓存刷新事件
+        FirewallService.CacheRefreshed += OnFirewallCacheRefreshed;
+    }
+
+    private async void OnFirewallCacheRefreshed(object? sender, EventArgs e)
+    {
+        await InvokeAsync(async () =>
+        {
+            XTrace.Log.Info("Firewall cache refreshed, updating port access directions...");
+            // 重新获取端口防火墙信息
+            await RefreshPortFirewallInfoAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task RefreshPortFirewallInfoAsync()
+    {
+        try
+        {
+            var ports = _ports.Select(p => p.Port).Distinct().ToList();
+            var firewallInfo = FirewallService.GetPortsFirewallInfo(ports);
+
+            foreach (var port in _ports)
+            {
+                if (firewallInfo.TryGetValue(port.Port, out var info))
+                {
+                    port.FirewallInfo = info;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            XTrace.WriteLine($"Error refreshing port firewall info: {ex.Message}");
+        }
     }
 
     private async void OnThemeChanged()
     {
         await InvokeAsync(async () =>
         {
-            // 更新 body 的 class
-            await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
             // 强制刷新 UI
             StateHasChanged();
         });
@@ -2588,7 +3037,7 @@
             // 检查页面是否已释放
             if (_isDisposed)
             {
-                Logger.LogDebug("Auto refresh skipped: page is disposed");
+                XTrace.Log.Debug("Auto refresh skipped: page is disposed");
                 return;
             }
 
@@ -2598,7 +3047,7 @@
                 var timeSinceLastRefresh = DateTime.Now - _lastRefreshTime;
                 if (timeSinceLastRefresh < _minRefreshInterval)
                 {
-                    Logger.LogDebug("Auto refresh skipped: last refresh was {Seconds:F1}s ago", timeSinceLastRefresh.TotalSeconds);
+                    XTrace.Log.Debug($"Auto refresh skipped: last refresh was {timeSinceLastRefresh.TotalSeconds:F1}s ago");
                     return;
                 }
 
@@ -2625,6 +3074,8 @@
     public void Dispose()
     {
         _isDisposed = true;
+
+        // 先停止所有定时器，防止新的刷新操作
         StopAutoRefresh();
         StopRefreshProgressTimer();
         _notificationTimer?.Stop();
@@ -2634,17 +3085,30 @@
         // 取消订阅主题变更事件
         ThemeService.OnThemeChanged -= OnThemeChanged;
 
+        // 取消订阅防火墙规则缓存刷新事件
+        FirewallService.CacheRefreshed -= OnFirewallCacheRefreshed;
+
+        // 等待一小段时间，让正在进行的刷新操作完成
+        Task.Delay(100).Wait();
+
         // 释放刷新锁
-        _refreshLock?.Dispose();
+        try
+        {
+            _refreshLock?.Dispose();
+        }
+        catch
+        {
+            // 忽略释放错误
+        }
     }
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            _ = JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
+            await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
         }
-        return base.OnAfterRenderAsync(firstRender);
+        await base.OnAfterRenderAsync(firstRender);
     }
 
     private async Task LoadPortsFromCacheAsync()
@@ -2652,16 +3116,27 @@
         try
         {
             _ports = PortScanner.GetPorts();
-            _filteredPorts = _ports.ToList();
-            
+
             if (_ports.Count == 0)
             {
                 await LoadPortsAsync();
             }
+            else
+            {
+                // 从缓存加载也需要更新刷新时间
+                _lastRefreshTime = DateTime.Now;
+                _refreshCount++;
+                // 应用筛选
+                FilterPorts();
+                StateHasChanged();
+                
+                // 获取防火墙规则信息
+                await RefreshPortFirewallInfoAsync();
+            }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error loading ports from cache");
+            XTrace.Log.Error($"Error loading ports from cache: {ex.Message}");
             await LoadPortsAsync();
         }
     }
@@ -2669,22 +3144,36 @@
     private async Task LoadPortsAsync()
     {
         _isLoading = true;
+        var startTime = DateTime.Now;
+        _currentRefreshStartTime = startTime;
         StateHasChanged();
-        
+
+        // 启动实时刷新进度定时器
+        StartRefreshProgressTimer();
+
         try
         {
             await Task.Delay(500);
             await PortScanner.RefreshPortsAsync();
             _ports = PortScanner.GetPorts();
-            _filteredPorts = _ports.ToList();
+
+            // 更新刷新统计
+            _lastRefreshDuration = DateTime.Now - startTime;
+            _lastRefreshTime = DateTime.Now;
+            _refreshCount++;
+
+            // 应用筛选
+            FilterPorts();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error loading ports");
+            XTrace.Log.Error($"Error loading ports: {ex.Message}");
             ShowNotification("加载端口失败", "error");
         }
         finally
         {
+            // 停止实时刷新进度定时器
+            StopRefreshProgressTimer();
             _isLoading = false;
             StateHasChanged();
         }
@@ -2703,7 +3192,7 @@
         // 检查页面是否已释放
         if (_isDisposed)
         {
-            Logger.LogDebug("Refresh skipped: page is disposed");
+            XTrace.Log.Debug("Refresh skipped: page is disposed");
             return;
         }
 
@@ -2711,7 +3200,7 @@
         var lockTimeout = showRefreshing ? 5000 : 0;
         if (!await _refreshLock.WaitAsync(lockTimeout))
         {
-            Logger.LogInformation("Refresh skipped: another refresh is in progress");
+            XTrace.Log.Info("Refresh skipped: another refresh is in progress");
             return;
         }
 
@@ -2726,7 +3215,7 @@
             // 检查页面是否已释放
             if (_isDisposed)
             {
-                Logger.LogDebug("Refresh skipped: page is disposed after acquiring lock");
+                XTrace.Log.Debug("Refresh skipped: page is disposed after acquiring lock");
                 return;
             }
 
@@ -2744,7 +3233,7 @@
             // 检查页面是否已释放
             if (_isDisposed)
             {
-                Logger.LogDebug("Refresh skipped: page is disposed during refresh");
+                XTrace.Log.Debug("Refresh skipped: page is disposed during refresh");
                 return;
             }
 
@@ -2765,7 +3254,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error auto-refreshing ports");
+            XTrace.Log.Error($"Error auto-refreshing ports: {ex.Message}");
         }
         finally
         {
@@ -2777,7 +3266,16 @@
                 _isRefreshing = false;
                 StateHasChanged();
             }
-            _refreshLock.Release();
+
+            // 安全释放锁
+            try
+            {
+                _refreshLock.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+                // 锁已被释放，忽略
+            }
         }
     }
 
@@ -2884,12 +3382,12 @@
         catch (UnauthorizedAccessException ex)
         {
             // 权限不足，给用户友好的提示
-            Logger.LogWarning("Access denied when killing port {Port}: {Message}", port, ex.Message);
+            XTrace.Log.Warn($"Access denied when killing port {port}: {ex.Message}");
             ShowNotification(ex.Message, "warning");
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error killing port");
+            XTrace.Log.Error($"Error killing port: {ex.Message}");
             ShowNotification($"终止端口失败: {ex.Message}", "error");
         }
     }
@@ -2982,7 +3480,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error exporting to CSV");
+            XTrace.Log.Error($"Error exporting to CSV: {ex.Message}");
             ShowNotification($"导出失败: {ex.Message}", "error");
         }
     }
@@ -2996,6 +3494,52 @@
             return "\"" + field.Replace("\"", "\"\"") + "\"";
         }
         return field;
+    }
+
+    private void ExportToJson()
+    {
+        try
+        {
+            var exportData = _filteredPorts.Select(port => new
+            {
+                port.Port,
+                port.Protocol,
+                port.ProcessName,
+                port.Pid,
+                port.Address,
+                port.User,
+                Command = port.Command,
+                Description = IsSystemService(port.ProcessName) ? GetSystemServiceDescription(port.ProcessName) : "",
+                port.IsFavorite,
+                port.IsWatched,
+                IsSystemService = IsSystemService(port.ProcessName)
+            }).ToList();
+
+            var json = System.Text.Json.JsonSerializer.Serialize(exportData, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            });
+
+            var fileName = $"端口列表_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+            var filePath = Path.Combine(Path.GetTempPath(), fileName);
+            File.WriteAllText(filePath, json, Encoding.UTF8);
+
+            // 使用默认程序打开JSON文件
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = filePath,
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+
+            ShowNotification($"已导出 {_filteredPorts.Count} 个端口到 {fileName}", "success");
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error exporting to JSON: {ex.Message}");
+            ShowNotification($"导出失败: {ex.Message}", "error");
+        }
     }
 
     private void FilterPorts()
@@ -3067,8 +3611,6 @@
         { "crss", "客户端/服务器运行时子系统 - Windows核心组件" },
         { "system", "系统进程 - Windows操作系统核心" },
         { "registry", "注册表进程 - Windows注册表管理" },
-        { "sshd", "OpenSSH服务器 - 提供SSH远程连接服务" },
-        { "openssh", "OpenSSH服务 - 安全远程连接服务" },
         { "TermService", "远程桌面服务 - 允许远程桌面连接" },
         { "RpcSs", "RPC服务 - 远程过程调用服务" },
         { "Dhcp", "DHCP客户端 - 自动获取IP地址" },
@@ -3306,7 +3848,7 @@
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Error killing port {Port}", port);
+                XTrace.Log.Error($"Error killing port {port}: {ex.Message}");
             }
         }
         
@@ -3352,7 +3894,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error creating tunnel");
+            XTrace.Log.Error($"Error creating tunnel: {ex.Message}");
             ShowNotification($"创建隧道失败: {ex.Message}", "error");
         }
     }
@@ -3446,8 +3988,310 @@
             return $"{_lastRefreshDuration.TotalMinutes:F1}m";
     }
 
+    /// <summary>
+    /// 获取进程详细信息
+    /// </summary>
+    private ProcessDetails? GetProcessDetails(int pid)
+    {
+        if (pid <= 0) return null;
+
+        try
+        {
+            var process = System.Diagnostics.Process.GetProcessById(pid);
+            if (process == null) return null;
+
+            // 获取内存使用量（KB）
+            var memoryKB = process.WorkingSet64 / 1024;
+
+            // 获取CPU使用率
+            var cpuPercent = GetProcessCpuPercent(process);
+
+            // 获取进程优先级
+            var priority = GetPriorityText(process.PriorityClass);
+
+            // 获取启动时间
+            var startTime = GetStartTimeText(process.StartTime);
+
+            // 获取进程状态
+            var status = GetProcessStatus(process);
+
+            // 获取子进程数量
+            var childrenCount = 0;
+            try
+            {
+                var searcher = new System.Management.ManagementObjectSearcher(
+                    $"SELECT * FROM Win32_Process WHERE ParentProcessId = {pid}");
+                childrenCount = searcher.Get().Count;
+            }
+            catch { }
+
+            return new ProcessDetails
+            {
+                MemoryKB = memoryKB,
+                CpuPercent = cpuPercent,
+                Priority = priority,
+                StartTime = startTime,
+                ProcessStatus = status,
+                ChildrenCount = childrenCount
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 获取进程优先级文本
+    /// </summary>
+    private string GetPriorityText(System.Diagnostics.ProcessPriorityClass priority)
+    {
+        return priority switch
+        {
+            System.Diagnostics.ProcessPriorityClass.RealTime => "实时",
+            System.Diagnostics.ProcessPriorityClass.High => "高",
+            System.Diagnostics.ProcessPriorityClass.AboveNormal => "高于正常",
+            System.Diagnostics.ProcessPriorityClass.Normal => "正常",
+            System.Diagnostics.ProcessPriorityClass.BelowNormal => "低于正常",
+            System.Diagnostics.ProcessPriorityClass.Idle => "低",
+            _ => "未知"
+        };
+    }
+
+    /// <summary>
+    /// 获取启动时间文本
+    /// </summary>
+    private string GetStartTimeText(DateTime startTime)
+    {
+        var elapsed = DateTime.Now - startTime;
+        
+        if (elapsed.TotalDays >= 1)
+            return $"{elapsed.TotalDays:F0} 天前";
+        else if (elapsed.TotalHours >= 1)
+            return $"{elapsed.TotalHours:F0} 小时前";
+        else if (elapsed.TotalMinutes >= 1)
+            return $"{elapsed.TotalMinutes:F0} 分钟前";
+        else
+            return $"{elapsed.TotalSeconds:F0} 秒前";
+    }
+
+    /// <summary>
+    /// 获取进程状态
+    /// </summary>
+    private ProcessStatus GetProcessStatus(System.Diagnostics.Process process)
+    {
+        try
+        {
+            if (process.HasExited)
+                return ProcessStatus.Exited;
+            
+            // 检查是否响应
+            if (!process.Responding)
+                return ProcessStatus.NotResponding;
+            
+            return ProcessStatus.Running;
+        }
+        catch
+        {
+            return ProcessStatus.Unknown;
+        }
+    }
+
+    /// <summary>
+    /// 获取进程CPU使用率
+    /// </summary>
+    private double GetProcessCpuPercent(System.Diagnostics.Process process)
+    {
+        try
+        {
+            // 获取初始CPU时间
+            var startTime = DateTime.UtcNow;
+            var startCpuUsage = process.TotalProcessorTime;
+
+            // 等待一小段时间
+            System.Threading.Thread.Sleep(100);
+
+            // 获取结束CPU时间
+            var endTime = DateTime.UtcNow;
+            var endCpuUsage = process.TotalProcessorTime;
+
+            // 计算CPU使用率
+            var cpuUsedMs = (endCpuUsage - startCpuUsage).TotalMilliseconds;
+            var totalMsPassed = (endTime - startTime).TotalMilliseconds;
+            var cpuCount = Environment.ProcessorCount;
+
+            var cpuPercent = cpuUsedMs / (totalMsPassed * cpuCount) * 100;
+
+            return Math.Min(cpuPercent, 100); // 限制在100%以内
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 打开进程所在文件夹
+    /// </summary>
+    /// <summary>
+    /// 打开进程所在文件夹（异步执行，避免阻塞UI）
+    /// </summary>
+    private async Task OpenProcessFolder(string command)
+    {
+        // 立即关闭弹窗，提供即时反馈
+        ClosePortDetailsModal();
+        
+        await Task.Run(() =>
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(command)) return;
+
+                var folderPath = Path.GetDirectoryName(command);
+                if (string.IsNullOrEmpty(folderPath)) return;
+
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{command}\"",
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                XTrace.Log.Error($"Error opening process folder: {ex.Message}");
+                // 使用InvokeAsync确保在主线程上显示通知
+                InvokeAsync(() => ShowNotification("打开文件夹失败", "error"));
+            }
+        });
+    }
+
+    /// <summary>
+    /// 打开任务管理器（异步执行，避免阻塞UI）
+    /// </summary>
+    private async Task OpenTaskManager(int pid)
+    {
+        // 立即关闭弹窗，提供即时反馈
+        ClosePortDetailsModal();
+        
+        await Task.Run(() =>
+        {
+            try
+            {
+                // 启动任务管理器
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "taskmgr.exe",
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process.Start(psi);
+
+                // 使用InvokeAsync确保在主线程上显示通知
+                InvokeAsync(() => ShowNotification("任务管理器已打开", "success"));
+            }
+            catch (Exception ex)
+            {
+                XTrace.Log.Error($"Error opening task manager: {ex.Message}");
+                InvokeAsync(() => ShowNotification("打开任务管理器失败", "error"));
+            }
+        });
+    }
+
+    /// <summary>
+    /// 进程状态枚举
+    /// </summary>
+    private enum ProcessStatus
+    {
+        Running,
+        NotResponding,
+        Exited,
+        Unknown
+    }
+
+    /// <summary>
+    /// 进程详情数据类
+    /// </summary>
+    private class ProcessDetails
+    {
+        public long MemoryKB { get; set; }
+        public double CpuPercent { get; set; }
+        public string Priority { get; set; } = "正常";
+        public string StartTime { get; set; } = "";
+        public ProcessStatus ProcessStatus { get; set; } = ProcessStatus.Unknown;
+        public int ChildrenCount { get; set; }
+    }
+
+    /// <summary>
+    /// 格式化内存显示（自动切换 KB/MB）
+    /// </summary>
+    private string FormatMemory(long memoryKB)
+    {
+        if (memoryKB >= 1024)
+        {
+            return $"{memoryKB / 1024.0:F1} MB";
+        }
+        else
+        {
+            return $"{memoryKB} KB";
+        }
+    }
+
+    /// <summary>
+    /// 获取CPU样式类
+    /// </summary>
+    private string GetCpuClass(double cpuPercent)
+    {
+        return cpuPercent switch
+        {
+            >= 80 => "cpu-high",
+            >= 50 => "cpu-medium",
+            > 0 => "cpu-low",
+            _ => ""
+        };
+    }
+
+    /// <summary>
+    /// 获取状态样式类
+    /// </summary>
+    private string GetStatusClass(ProcessStatus? status)
+    {
+        return status switch
+        {
+            ProcessStatus.Running => "status-running",
+            ProcessStatus.NotResponding => "status-not-responding",
+            ProcessStatus.Exited => "status-exited",
+            _ => "status-unknown"
+        };
+    }
+
+    /// <summary>
+    /// 获取状态文本
+    /// </summary>
+    private string GetStatusText(ProcessStatus? status, bool canKill)
+    {
+        var statusText = status switch
+        {
+            ProcessStatus.Running => "● 运行中",
+            ProcessStatus.NotResponding => "⚠ 未响应",
+            ProcessStatus.Exited => "✕ 已退出",
+            _ => "? 未知"
+        };
+
+        if (!canKill && status == ProcessStatus.Running)
+        {
+            statusText += " 🛡️";
+        }
+
+        return statusText;
+    }
+
     private string GetCurrentRefreshDurationText()
     {
+        // 如果还没有设置开始时间，返回 0ms
+        if (_currentRefreshStartTime == DateTime.MinValue)
+            return "0ms";
+
         var elapsed = DateTime.Now - _currentRefreshStartTime;
         if (elapsed.TotalSeconds < 1)
             return $"{elapsed.TotalMilliseconds:F0}ms";
@@ -3455,5 +4299,57 @@
             return $"{elapsed.TotalSeconds:F1}s";
         else
             return $"{elapsed.TotalMinutes:F1}m";
+    }
+
+    private RenderFragment GetAccessDirectionBadge(PortAccessDirection direction)
+    {
+        return direction switch
+        {
+            PortAccessDirection.Bidirectional => @<span class="access-badge bidirectional" title="允许入站和出站">🔄 双向</span>,
+            PortAccessDirection.Inbound => @<span class="access-badge inbound" title="仅允许入站">📥 入站</span>,
+            PortAccessDirection.Outbound => @<span class="access-badge outbound" title="仅允许出站">📤 出站</span>,
+            PortAccessDirection.Blocked => @<span class="access-badge blocked" title="已阻止">🚫 阻止</span>,
+            _ => @<span class="access-badge unknown" title="未知">❓ 未知</span>
+        };
+    }
+
+    private RenderFragment GetAccessDirectionArrow(PortAccessDirection direction)
+    {
+        return direction switch
+        {
+            PortAccessDirection.Bidirectional => @<span class="access-arrow bidirectional" title="允许入站和出站">⇄</span>,
+            PortAccessDirection.Inbound => @<span class="access-arrow inbound" title="仅允许入站">←</span>,
+            PortAccessDirection.Outbound => @<span class="access-arrow outbound" title="仅允许出站">→</span>,
+            PortAccessDirection.Blocked => @<span class="access-arrow blocked" title="已阻止">✕</span>,
+            _ => @<span class="access-arrow unknown" title="未知">?</span>
+        };
+    }
+
+    /// <summary>
+    /// 获取端口用途说明
+    /// </summary>
+    private string GetPortUsageDescription(int port)
+    {
+        return port switch
+        {
+            20 => "FTP 数据传输",
+            21 => "FTP 控制连接",
+            22 => "SSH 安全 shell",
+            23 => "Telnet 远程登录",
+            25 => "SMTP 邮件发送",
+            53 => "DNS 域名解析",
+            80 => "HTTP 网页服务",
+            110 => "POP3 邮件接收",
+            143 => "IMAP 邮件访问",
+            443 => "HTTPS 安全网页",
+            3306 => "MySQL 数据库",
+            3389 => "RDP 远程桌面",
+            5432 => "PostgreSQL 数据库",
+            6379 => "Redis 缓存",
+            8080 => "HTTP 代理/备用",
+            8443 => "HTTPS 备用",
+            27017 => "MongoDB 数据库",
+            _ => $"端口 {port}"
+        };
     }
 }
