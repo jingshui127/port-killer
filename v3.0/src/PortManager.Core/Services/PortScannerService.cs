@@ -55,7 +55,7 @@ public class PortScannerService
 
     public async Task RefreshPortsAsync()
     {
-        await Task.Run(() =>
+        await Task.Run(async () =>
         {
             var newPorts = new List<PortInfo>();
             var processedPorts = new HashSet<(int Port, string Protocol)>();
@@ -63,96 +63,15 @@ public class PortScannerService
             // 获取当前端口列表用于比较（使用端口+协议作为复合键）
             var currentPorts = GetPorts().ToDictionary(p => (p.Port, p.Protocol));
             
-            // 一次性获取所有端口的进程信息（优化性能）
-            var portProcessMap = GetAllPortProcesses();
-            
             try
             {
-                // 获取 TCP 监听端口
-                var tcpListeners = IPGlobalProperties.GetIPGlobalProperties()
-                    .GetActiveTcpListeners()
-                    .Where(listener => listener.Port > 0)
-                    .ToList();
-
-                foreach (var listener in tcpListeners)
-                {
-                    var port = listener.Port;
-                    var key = (port, "TCP");
-                    
-                    // 跳过已处理的端口，避免重复
-                    if (processedPorts.Contains(key))
-                    {
-                        continue;
-                    }
-                    
-                    var address = listener.Address?.ToString() ?? "127.0.0.1";
-                    
-                    // 从缓存的映射中获取进程信息
-                    var (pid, processName, command, userName) = GetProcessInfoFromMap(portProcessMap, port, "TCP");
-                    
-                    var portInfo = new PortInfo
-                    {
-                        Port = port,
-                        ProcessName = processName,
-                        Pid = pid,
-                        Address = address,
-                        User = userName,
-                        Command = command,
-                        IsActive = true,
-                        IsFavorite = _favorites.ContainsKey(port),
-                        IsWatched = _watched.ContainsKey(port),
-                        Protocol = "TCP"
-                    };
-                    
-                    newPorts.Add(portInfo);
-                    processedPorts.Add(key);
-                }
-
-                // 获取 UDP 端口
-                var udpListeners = IPGlobalProperties.GetIPGlobalProperties()
-                    .GetActiveUdpListeners()
-                    .Where(listener => listener.Port > 0)
-                    .ToList();
-
-                foreach (var listener in udpListeners)
-                {
-                    var port = listener.Port;
-                    var key = (port, "UDP");
-                    
-                    // 跳过已处理的端口，避免重复
-                    if (processedPorts.Contains(key))
-                    {
-                        continue;
-                    }
-                    
-                    var address = listener.Address?.ToString() ?? "127.0.0.1";
-                    
-                    // 从缓存的映射中获取进程信息
-                    var (pid, processName, command, userName) = GetProcessInfoFromMap(portProcessMap, port, "UDP");
-                    
-                    var portInfo = new PortInfo
-                    {
-                        Port = port,
-                        ProcessName = processName,
-                        Pid = pid,
-                        Address = address,
-                        User = userName,
-                        Command = command,
-                        IsActive = true,
-                        IsFavorite = _favorites.ContainsKey(port),
-                        IsWatched = _watched.ContainsKey(port),
-                        Protocol = "UDP"
-                    };
-                    
-                    newPorts.Add(portInfo);
-                    processedPorts.Add(key);
-                    
-                    // 检测新启动的端口（收藏或监控的端口）
-                    if (!currentPorts.ContainsKey(key) && _watched.ContainsKey(port))
-                    {
-                        _notificationService.NotifyPortStarted(port, processName);
-                    }
-                }
+#if WINDOWS
+                // Windows: 使用 IPGlobalProperties 获取端口信息
+                await RefreshPortsWindowsAsync(newPorts, processedPorts, currentPorts);
+#else
+                // Linux: 使用 ss 命令获取端口信息
+                await RefreshPortsLinuxAsync(newPorts, processedPorts, currentPorts);
+#endif
                 
                 // 检测停止的端口（收藏或监控的端口）
                 foreach (var oldPort in currentPorts.Values)
@@ -188,7 +107,7 @@ public class PortScannerService
                         }
                         
                         // Linux: 如果没有防火墙信息，根据地址判断方向
-                        #if !WINDOWS
+#if !WINDOWS
                         if (port.FirewallInfo == null)
                         {
                             var direction = FirewallService.GetDirectionFromAddress(port.Address);
@@ -198,7 +117,7 @@ public class PortScannerService
                                 AllowOutbound = direction == PortAccessDirection.Outbound || direction == PortAccessDirection.Bidirectional
                             };
                         }
-                        #endif
+#endif
                     }
                     
                     XTrace.Log.Debug($"Firewall info loaded for {firewallInfo.Count} ports");
@@ -214,6 +133,271 @@ public class PortScannerService
             }
         });
     }
+    
+#if WINDOWS
+    private Task RefreshPortsWindowsAsync(List<PortInfo> newPorts, HashSet<(int Port, string Protocol)> processedPorts, Dictionary<(int Port, string Protocol), PortInfo> currentPorts)
+    {
+        // 一次性获取所有端口的进程信息（优化性能）
+        var portProcessMap = GetAllPortProcesses();
+        
+        // 获取 TCP 监听端口
+        var tcpListeners = IPGlobalProperties.GetIPGlobalProperties()
+            .GetActiveTcpListeners()
+            .Where(listener => listener.Port > 0)
+            .ToList();
+
+        foreach (var listener in tcpListeners)
+        {
+            var port = listener.Port;
+            var key = (port, "TCP");
+            
+            if (processedPorts.Contains(key)) continue;
+            
+            var address = listener.Address?.ToString() ?? "127.0.0.1";
+            var (pid, processName, command, userName) = GetProcessInfoFromMap(portProcessMap, port, "TCP");
+            
+            var portInfo = new PortInfo
+            {
+                Port = port,
+                ProcessName = processName,
+                Pid = pid,
+                Address = address,
+                User = userName,
+                Command = command,
+                IsActive = true,
+                IsFavorite = _favorites.ContainsKey(port),
+                IsWatched = _watched.ContainsKey(port),
+                Protocol = "TCP"
+            };
+            
+            newPorts.Add(portInfo);
+            processedPorts.Add(key);
+        }
+
+        // 获取 UDP 端口
+        var udpListeners = IPGlobalProperties.GetIPGlobalProperties()
+            .GetActiveUdpListeners()
+            .Where(listener => listener.Port > 0)
+            .ToList();
+
+        foreach (var listener in udpListeners)
+        {
+            var port = listener.Port;
+            var key = (port, "UDP");
+            
+            if (processedPorts.Contains(key)) continue;
+            
+            var address = listener.Address?.ToString() ?? "127.0.0.1";
+            var (pid, processName, command, userName) = GetProcessInfoFromMap(portProcessMap, port, "UDP");
+            
+            var portInfo = new PortInfo
+            {
+                Port = port,
+                ProcessName = processName,
+                Pid = pid,
+                Address = address,
+                User = userName,
+                Command = command,
+                IsActive = true,
+                IsFavorite = _favorites.ContainsKey(port),
+                IsWatched = _watched.ContainsKey(port),
+                Protocol = "UDP"
+            };
+            
+            newPorts.Add(portInfo);
+            processedPorts.Add(key);
+            
+            if (!currentPorts.ContainsKey(key) && _watched.ContainsKey(port))
+            {
+                _notificationService.NotifyPortStarted(port, processName);
+            }
+        }
+        
+        return Task.CompletedTask;
+    }
+#else
+    private Task RefreshPortsLinuxAsync(List<PortInfo> newPorts, HashSet<(int Port, string Protocol)> processedPorts, Dictionary<(int Port, string Protocol), PortInfo> currentPorts)
+    {
+        try
+        {
+            // 首先获取所有进程信息
+            var processInfoMap = GetAllProcessInfoBulk();
+            
+            // 使用 ss 命令获取所有监听端口（TCP 和 UDP）
+            // ss -tlnp: TCP, 监听状态，不解析服务名，显示进程
+            // ss -ulnp: UDP, 监听状态，不解析服务名，显示进程
+            var tcpPorts = ParseSsOutput("ss -tlnp", "TCP", processInfoMap);
+            var udpPorts = ParseSsOutput("ss -ulnp", "UDP", processInfoMap);
+            
+            // 合并 TCP 和 UDP 端口
+            foreach (var portInfo in tcpPorts.Concat(udpPorts))
+            {
+                var key = (portInfo.Port, portInfo.Protocol);
+                
+                if (processedPorts.Contains(key)) continue;
+                
+                portInfo.IsFavorite = _favorites.ContainsKey(portInfo.Port);
+                portInfo.IsWatched = _watched.ContainsKey(portInfo.Port);
+                
+                newPorts.Add(portInfo);
+                processedPorts.Add(key);
+                
+                // 检测新启动的端口
+                if (!currentPorts.ContainsKey(key) && _watched.ContainsKey(portInfo.Port))
+                {
+                    _notificationService.NotifyPortStarted(portInfo.Port, portInfo.ProcessName);
+                }
+            }
+            
+            XTrace.Log.Debug($"Linux: Loaded {newPorts.Count} ports from ss command");
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error refreshing ports on Linux: {ex.Message}");
+        }
+        
+        return Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// 解析 ss 命令输出
+    /// </summary>
+    private List<PortInfo> ParseSsOutput(string command, string protocol, Dictionary<int, (string ProcessName, string Command, string UserName)> processInfoMap)
+    {
+        var ports = new List<PortInfo>();
+        
+        try
+        {
+            var parts = command.Split(' ');
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = parts[0],
+                Arguments = string.Join(" ", parts.Skip(1)),
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process == null) return ports;
+
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(5000);
+            
+            var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            
+            // 跳过标题行
+            foreach (var line in lines.Skip(1))
+            {
+                try
+                {
+                    var portInfo = ParseSsLine(line, protocol, processInfoMap);
+                    if (portInfo != null && portInfo.Port > 0)
+                    {
+                        ports.Add(portInfo);
+                    }
+                }
+                catch { /* 忽略解析错误 */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error parsing ss output: {ex.Message}");
+        }
+        
+        return ports;
+    }
+    
+    /// <summary>
+    /// 解析 ss 命令的单行输出
+    /// 格式示例: LISTEN 0  128  0.0.0.0:22  0.0.0.0:*  users:(("sshd",pid=1234,fd=3))
+    /// </summary>
+    private PortInfo? ParseSsLine(string line, string protocol, Dictionary<int, (string ProcessName, string Command, string UserName)> processInfoMap)
+    {
+        try
+        {
+            var parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 5) return null;
+            
+            // 找到本地地址部分（通常是第4列）
+            var localAddressPart = parts[3];
+            
+            // 解析地址和端口
+            string address;
+            int port;
+            
+            // 处理 IPv4: 0.0.0.0:22 或 127.0.0.1:8080
+            // 处理 IPv6: [::]:22 或 [::1]:8080
+            var lastColonIndex = localAddressPart.LastIndexOf(':');
+            if (lastColonIndex <= 0) return null;
+            
+            address = localAddressPart.Substring(0, lastColonIndex);
+            var portStr = localAddressPart.Substring(lastColonIndex + 1);
+            
+            // 去除 IPv6 的方括号
+            if (address.StartsWith("[") && address.EndsWith("]"))
+            {
+                address = address.Substring(1, address.Length - 2);
+            }
+            
+            if (!int.TryParse(portStr, out port) || port <= 0) return null;
+            
+            // 解析进程信息
+            string processName = "Unknown";
+            int pid = 0;
+            string command = string.Empty;
+            string userName = Environment.UserName;
+            
+            // 查找 users:(("name",pid=1234,...)) 部分
+            var usersIndex = Array.FindIndex(parts, p => p.StartsWith("users:"));
+            if (usersIndex >= 0)
+            {
+                // 合并剩余部分并解析
+                var usersPart = string.Join(" ", parts.Skip(usersIndex));
+                var pidMatch = System.Text.RegularExpressions.Regex.Match(usersPart, @"pid=(\d+)");
+                if (pidMatch.Success)
+                {
+                    pid = int.Parse(pidMatch.Groups[1].Value);
+                    
+                    // 从 processInfoMap 获取进程信息
+                    if (processInfoMap.TryGetValue(pid, out var procInfo))
+                    {
+                        processName = procInfo.ProcessName;
+                        command = procInfo.Command;
+                        userName = procInfo.UserName;
+                    }
+                    else
+                    {
+                        // 尝试从 users 部分解析进程名
+                        var nameMatch = System.Text.RegularExpressions.Regex.Match(usersPart, @"""([^""]+)""");
+                        if (nameMatch.Success)
+                        {
+                            processName = nameMatch.Groups[1].Value;
+                        }
+                    }
+                }
+            }
+            
+            return new PortInfo
+            {
+                Port = port,
+                ProcessName = processName,
+                Pid = pid,
+                Address = address,
+                User = userName,
+                Command = command,
+                IsActive = true,
+                Protocol = protocol
+            };
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Debug($"Error parsing ss line: {ex.Message}");
+            return null;
+        }
+    }
+#endif
 
     private Process? GetProcessForPort(int port)
     {
@@ -442,6 +626,7 @@ public class PortScannerService
     {
         var result = new Dictionary<int, (string ProcessName, string Command, string UserName)>();
         
+#if WINDOWS
         try
         {
             // 使用 tasklist 获取所有进程信息
@@ -478,8 +663,7 @@ public class PortScannerService
                 }
             }
             
-            // 尝试使用 WMI (Windows) 或 /proc (Linux) 获取进程路径信息
-#if WINDOWS
+            // 尝试使用 WMI 获取进程路径信息
             try
             {
                 var wmiQuery = new System.Management.ManagementObjectSearcher(
@@ -501,42 +685,119 @@ public class PortScannerService
             {
                 // WMI 查询失败，使用已有信息
             }
-#else
-            // Linux: 从 /proc/[pid]/exe 读取进程路径
-            try
-            {
-                foreach (var pid in result.Keys.ToList())
-                {
-                    try
-                    {
-                        var exePath = $"/proc/{pid}/exe";
-                        if (File.Exists(exePath))
-                        {
-                            // 读取符号链接目标
-                            var path = ReadLink(exePath);
-                            if (!string.IsNullOrEmpty(path))
-                            {
-                                var existing = result[pid];
-                                result[pid] = (existing.ProcessName, path, existing.UserName);
-                            }
-                        }
-                    }
-                    catch { /* 忽略单个进程的错误 */ }
-                }
-            }
-            catch (Exception ex)
-            {
-                XTrace.Log.Debug($"Error reading /proc for process paths: {ex.Message}");
-            }
-#endif
         }
         catch (Exception ex)
         {
-            XTrace.Log.Error($"Error getting process info bulk: {ex.Message}");
+            XTrace.Log.Error($"Error getting process info bulk on Windows: {ex.Message}");
         }
+#else
+        // Linux: 从 /proc 文件系统获取进程信息
+        try
+        {
+            var procDirs = Directory.GetDirectories("/proc")
+                .Where(d => int.TryParse(Path.GetFileName(d), out _))
+                .ToList();
+            
+            foreach (var procDir in procDirs)
+            {
+                try
+                {
+                    var pid = int.Parse(Path.GetFileName(procDir));
+                    
+                    // 读取进程名称和命令行
+                    var statusPath = Path.Combine(procDir, "status");
+                    var cmdlinePath = Path.Combine(procDir, "cmdline");
+                    var exePath = Path.Combine(procDir, "exe");
+                    
+                    string processName = "Unknown";
+                    string command = string.Empty;
+                    string userName = Environment.UserName;
+                    
+                    // 从 status 文件读取进程名
+                    if (File.Exists(statusPath))
+                    {
+                        var statusLines = File.ReadAllLines(statusPath);
+                        var nameLine = statusLines.FirstOrDefault(l => l.StartsWith("Name:"));
+                        if (nameLine != null)
+                        {
+                            processName = nameLine.Substring(5).Trim();
+                        }
+                        
+                        // 读取 UID 并转换为用户名
+                        var uidLine = statusLines.FirstOrDefault(l => l.StartsWith("Uid:"));
+                        if (uidLine != null)
+                        {
+                            var uidParts = uidLine.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (uidParts.Length >= 2 && int.TryParse(uidParts[1], out var uid))
+                            {
+                                userName = GetUserNameFromUid(uid);
+                            }
+                        }
+                    }
+                    
+                    // 从 cmdline 读取完整命令
+                    if (File.Exists(cmdlinePath))
+                    {
+                        var cmdline = File.ReadAllText(cmdlinePath).Replace('\0', ' ').Trim();
+                        if (!string.IsNullOrEmpty(cmdline))
+                        {
+                            command = cmdline;
+                        }
+                    }
+                    
+                    // 从 exe 符号链接读取可执行文件路径
+                    if (File.Exists(exePath))
+                    {
+                        var path = ReadLink(exePath);
+                        if (!string.IsNullOrEmpty(path))
+                        {
+                            command = path;
+                        }
+                    }
+                    
+                    result[pid] = (processName, command, userName);
+                }
+                catch { /* 忽略单个进程的错误 */ }
+            }
+            
+            XTrace.Log.Debug($"Loaded {result.Count} processes from /proc on Linux");
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error getting process info from /proc on Linux: {ex.Message}");
+        }
+#endif
 
         return result;
     }
+    
+#if !WINDOWS
+    /// <summary>
+    /// 根据 UID 获取用户名 (Linux)
+    /// </summary>
+    private static string GetUserNameFromUid(int uid)
+    {
+        try
+        {
+            var passwdPath = "/etc/passwd";
+            if (File.Exists(passwdPath))
+            {
+                var lines = File.ReadAllLines(passwdPath);
+                foreach (var line in lines)
+                {
+                    var parts = line.Split(':');
+                    if (parts.Length >= 3 && parts[2] == uid.ToString())
+                    {
+                        return parts[0]; // 用户名
+                    }
+                }
+            }
+        }
+        catch { }
+        
+        return uid.ToString();
+    }
+#endif
 
     /// <summary>
     /// 解析 CSV 行
