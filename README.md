@@ -1,13 +1,12 @@
-# PortManager
+# PortManager v3.0
 
 <p align="center">
-  <img src="platforms/blazor/PortKiller.Blazor/wwwroot/appicon.svg" alt="PortManager Icon" width="128" height="128">
+  <img src="v3.0/src/PortManager.Web/wwwroot/appicon.svg" alt="PortManager Icon" width="128" height="128">
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%2B-0078D6" alt="Windows"></a>
-  <a href="https://www.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-15.0%2B-brightgreen" alt="macOS"></a>
   <a href="https://github.com/jingshui127/port-killer/releases"><img src="https://img.shields.io/github/v/release/jingshui127/port-killer" alt="GitHub Release"></a>
 </p>
 
@@ -18,51 +17,94 @@
 
 ## About
 
-PortManager is a powerful cross-platform port management tool developed by **科控物联 (KeKong WuLian)**. It provides developers with an intuitive interface to monitor, manage, and control network ports, processes, and Cloudflare Tunnels on Windows operating system.
+PortManager is a powerful cross-platform port management tool developed by **科控物联 (KeKong WuLian)**. Version 3.0 features a complete UI redesign with MASA Blazor, providing a modern, responsive interface for monitoring, managing, and controlling network ports, processes, and Cloudflare Tunnels on Windows.
 
 ### Developer
 - **Team**: 科控物联 (KeKong WuLian)
 - **QQ**: 2492123056
 - **Feedback**: Welcome to feedback and suggestions via QQ
 
-### Blazor Web Version
+## What's New in v3.0
 
-<p align="center">
-  <img src=".github/assets/blazor.png" alt="PortManager Blazor" width="800">
-</p>
+### 🎨 Complete UI Redesign
+- **MASA Blazor Integration**: Modern Material Design components
+- **Responsive Layout**: Full-width design that adapts to screen size
+- **Fixed Column Table**: Better table viewing with fixed left/right columns
+- **Improved Navigation**: Streamlined menu and action buttons
+
+### 📊 Enhanced Table View
+- **Fixed Columns**: Port and action columns stay visible while scrolling
+- **Pagination**: Configurable items per page (default 15)
+- **Sorting**: Click column headers to sort data
+- **Column Width Optimization**: Better use of screen space
+
+### 🖥️ WinForms Support
+- **Native Windows Application**: WinForms version with embedded Blazor WebView
+- **Application Icon**: Custom app icon for both Web and Desktop versions
+- **Simultaneous Access**: Run WinForms app while accessing via web browser
+
+### 📁 Data Export
+- **CSV Export**: Export port data to CSV format
+- **JSON Export**: Export port data to JSON format
+- **Quick Access**: Export buttons integrated into main toolbar
+
+### 🔄 Improved Layout
+- **Fixed Header**: Title, buttons, and stats panel stay fixed at top
+- **Scrollable Content**: Table/Card view scrolls independently
+- **Better Spacing**: Optimized spacing between elements
 
 ## Installation
 
-### Blazor Web Version
+### Requirements
+- **.NET 10 SDK** or later
+- **Windows 10** or later
+- **Cloudflared** (optional, for tunnel functionality)
+
+### Web Version
 
 **Run locally:**
 ```bash
-cd platforms/blazor/PortKiller.Blazor
+cd v3.0/src/PortManager.Web
 dotnet run
 ```
 
 **Access:** Open your browser and navigate to `http://localhost:5000`
 
-### Windows
+### Desktop (WinForms) Version
+
+**Run locally:**
+```bash
+cd v3.0/src/PortManager.Desktop
+dotnet run
+```
+
+Or build and run the executable:
+```bash
+cd v3.0/src/PortManager.Desktop
+dotnet build -c Release
+# Run the generated .exe in bin/Release/net10.0-windows/
+```
+
+### Download Release
 
 Download `.zip` from [GitHub Releases](https://github.com/jingshui127/port-killer/releases) and extract.
-
-**Access:** Open your browser and navigate to `http://localhost:5000`
 
 ## Features
 
 ### Port Management
-- 🔍 **Auto-discovery**: Automatically discovers all listening TCP ports
+- 🔍 **Auto-discovery**: Automatically discovers all listening TCP/UDP ports
 - ⚡ **One-click termination**: Kill processes with a single click
 - 🔄 **Auto-refresh**: Automatic refresh with incremental updates, no flickering
-- 🔎 **Search & Filter**: Quick search by port number or process name
+- 🔎 **Search & Filter**: Quick search by port number, process name, or address
 - ⭐ **Favorites**: Mark important ports as favorites for quick access
 - 👁 **Watched Ports**: Monitor specific ports with notifications
-- 📊 **Table View**: Switch between card and table views
+- 📊 **Table View**: Professional table view with fixed columns and pagination
 - 🗑 **Batch Operations**: Select and manage multiple ports at once
-- 📁 **Process Information**: View process path, PID, address and user information
+- 📁 **Process Information**: View process path, PID, address, user, and command information
 - 🔔 **Notification System**: Real-time notifications for port status changes
 - 📜 **Notification History**: View all notification records
+- 📤 **Data Export**: Export port data to CSV or JSON format
+- 🎨 **Dual Platform**: Both Web and WinForms desktop versions available
 
 ### Cloudflare Tunnels
 - ☁️ **Tunnel Management**: Create and manage Cloudflare Tunnel connections
@@ -103,6 +145,18 @@ Download `.zip` from [GitHub Releases](https://github.com/jingshui127/port-kille
 1. Click the "Watch" button on a port card
 2. When monitored ports start or stop, you will receive notifications
 3. View all status changes in the "Notification History"
+
+#### Using Table View
+1. Click the "表格" (Table) button to switch to table view
+2. **Fixed Columns**: Port number (left) and actions (right) stay visible while scrolling
+3. **Pagination**: Use the dropdown at the bottom to change items per page (default: 15)
+4. **Sorting**: Click column headers to sort by that column
+5. **Horizontal Scroll**: Scroll right to see all columns (Process Name, Command, Address, etc.)
+
+#### Exporting Data
+1. Click the "CSV" or "JSON" button in the toolbar
+2. Data will be exported and saved to your Downloads folder
+3. Open the file with your preferred application
 
 #### Batch Operations
 1. Click on port cards to select multiple ports
@@ -146,12 +200,25 @@ Click the "Notification History" button on the Ports page to view all notificati
 ### Core Technologies
 - **.NET 10**: Latest .NET framework for cross-platform development
 - **Blazor Server**: Web framework for building interactive web UIs
+- **Blazor WebView**: Embedded web view for WinForms desktop application
 - **MASA Blazor**: Material Design component library for Blazor
 - **Cloudflare Tunnel**: Secure tunneling service for exposing local services
 
+### Project Structure
+```
+v3.0/
+├── src/
+│   ├── PortManager.Web/          # Blazor Server Web Application
+│   ├── PortManager.Desktop/      # WinForms Desktop Application
+│   ├── PortManager.Shared/       # Shared Components and Pages
+│   └── PortManager.Core/         # Core Services and Models
+└── PortManager.sln
+```
+
 ### Platform Support
-- **Windows**: Full support with native application and Web UI
+- **Windows**: Full support with both Web and Desktop (WinForms) versions
 - **Web**: Cross-platform support via Blazor Server
+- **Simultaneous Access**: Run desktop app while accessing via web browser
 
 ## Configuration
 

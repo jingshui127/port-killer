@@ -7,6 +7,7 @@
 		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<AssemblyName>PortManager.Desktop</AssemblyName>
+		<ApplicationIcon>appicon.ico</ApplicationIcon>
 		<AssemblyTitle>端口管理器桌面版</AssemblyTitle>
 		<Description>PortManager 桌面版，功能强大的端口管理工具</Description>
 		<Company>科控物联</Company>
@@ -36,6 +37,12 @@
 		<Content Update="wwwroot\**">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="appicon.ico">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 
 </Project>

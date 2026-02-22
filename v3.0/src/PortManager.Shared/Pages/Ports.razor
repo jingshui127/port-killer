@@ -18,65 +18,67 @@
 
 <NavigationMenu />
 
-<div class="container @(IsLightTheme ? "light" : "")">
-    <MContainer Class="pt-2">
-        <MRow Dense>
-            <MCol Cols="12" Class="text-center">
-                <h2 class="text-h4 font-weight-bold">端口管理</h2>
-                <p class="text-body2 text--secondary">查看和管理系统端口</p>
-            </MCol>
-        </MRow>
+<div class="container @(IsLightTheme ? "light" : "")" style="width: 100%; max-width: 100%; height: calc(100vh - 64px); overflow: hidden;">
+    <div class="pa-2" style="width: 100%; height: 100%; display: flex; flex-direction: column;">
+        <!-- 固定头部区域 -->
+        <div style="flex-shrink: 0;">
+            <MRow Dense Class="mb-1">
+                <MCol Cols="12" Class="text-center">
+                    <h2 class="text-h4 font-weight-bold mb-1">端口管理</h2>
+                    <p class="text-body2 text--secondary mb-0">查看和管理系统端口</p>
+                </MCol>
+            </MRow>
 
-        <!-- 状态信息行 -->
-        <MRow Dense>
-            <MCol Cols="12" Class="text-center">
-                <div class="status-group-inline">
-                    @if (_autoRefreshEnabled)
-                    {
-                        <div class="status-badge auto-refresh-badge" title="自动刷新已开启">
-                            <span class="pulse-dot"></span>
-                            <span class="value">自动</span>
+            <!-- 状态信息行 -->
+            <MRow Dense Class="mt-0">
+                <MCol Cols="12" Class="text-center">
+                    <div class="status-group-inline">
+                        @if (_autoRefreshEnabled)
+                        {
+                            <div class="status-badge auto-refresh-badge" title="自动刷新已开启">
+                                <span class="pulse-dot"></span>
+                                <span class="value">自动</span>
+                            </div>
+                        }
+                        @if (_lastRefreshTime > DateTime.MinValue)
+                        {
+                            <div class="status-badge time-badge" title="最后刷新时间">
+                                <span class="icon @(_isLoading || _isRefreshing || _refreshProgressTimer != null ? "spin" : "")">🕐</span>
+                                <span class="value">@GetLastRefreshTimeText()</span>
+                            </div>
+                        }
+                        @if (_isLoading || _isRefreshing || _refreshProgressTimer != null)
+                        {
+                            <div class="status-badge duration-badge active" title="刷新中...">
+                                <span class="icon spin">⏱</span>
+                                <span class="value">@GetCurrentRefreshDurationText()</span>
+                            </div>
+                        }
+                        else if (_lastRefreshDuration > TimeSpan.Zero)
+                        {
+                            <div class="status-badge duration-badge" title="上次刷新耗时">
+                                <span class="icon">⏱</span>
+                                <span class="value">@GetRefreshDurationText()</span>
+                            </div>
+                        }
+                        <div class="status-badge refresh-badge" title="刷新计数">
+                            <span class="icon @(_isRefreshing ? "spin" : "")">⟳</span>
+                            <span class="value">@_refreshCount</span>
                         </div>
-                    }
-                    @if (_lastRefreshTime > DateTime.MinValue)
-                    {
-                        <div class="status-badge time-badge" title="最后刷新时间">
-                            <span class="icon @(_isLoading || _isRefreshing || _refreshProgressTimer != null ? "spin" : "")">🕐</span>
-                            <span class="value">@GetLastRefreshTimeText()</span>
-                        </div>
-                    }
-                    @if (_isLoading || _isRefreshing || _refreshProgressTimer != null)
-                    {
-                        <div class="status-badge duration-badge active" title="刷新中...">
-                            <span class="icon spin">⏱</span>
-                            <span class="value">@GetCurrentRefreshDurationText()</span>
-                        </div>
-                    }
-                    else if (_lastRefreshDuration > TimeSpan.Zero)
-                    {
-                        <div class="status-badge duration-badge" title="上次刷新耗时">
-                            <span class="icon">⏱</span>
-                            <span class="value">@GetRefreshDurationText()</span>
-                        </div>
-                    }
-                    <div class="status-badge refresh-badge" title="刷新计数">
-                        <span class="icon @(_isRefreshing ? "spin" : "")">⟳</span>
-                        <span class="value">@_refreshCount</span>
                     </div>
+                </MCol>
+            </MRow>
+
+            @if (_showNotification)
+            {
+                <div class="notification @_notificationType">
+                    <span class="notification-icon">@_notificationIcon</span>
+                    <span class="notification-message">@_notificationMessage</span>
+                    <button class="notification-close" @onclick="@HideNotification">✕</button>
                 </div>
-            </MCol>
-        </MRow>
+            }
 
-        @if (_showNotification)
-        {
-            <div class="notification @_notificationType">
-                <span class="notification-icon">@_notificationIcon</span>
-                <span class="notification-message">@_notificationMessage</span>
-                <button class="notification-close" @onclick="@HideNotification">✕</button>
-            </div>
-        }
-
-    <div class="actions-container">
+            <div class="actions-container">
         <!-- 操作按钮组 -->
         <div class="actions-group">
             <button class="btn btn-primary @(_isRefreshing ? "refreshing" : "")" @onclick="@RefreshPorts" disabled="@_isRefreshing">
@@ -90,6 +92,14 @@
             <button class="btn btn-secondary" @onclick="@ShowNotificationHistory" title="通知历史">
                 <span class="icon">🔔</span>
                 <text>通知历史</text>
+            </button>
+            <button class="export-btn" @onclick="ExportToCsv" title="导出CSV">
+                <span class="icon">📊</span>
+                <text>CSV</text>
+            </button>
+            <button class="export-btn" @onclick="ExportToJson" title="导出JSON">
+                <span class="icon">📋</span>
+                <text>JSON</text>
             </button>
         </div>
 
@@ -154,19 +164,11 @@
             <input type="number" @bind="_portRangeEnd" placeholder="结束" min="1" max="65535" @oninput="OnPortRangeInput" />
             <button class="clear-range-btn" @onclick="ClearPortRange" title="清除范围">✕</button>
         </div>
-
-        <div class="export-group">
-            <button class="export-btn" @onclick="ExportToCsv" title="导出CSV">
-                <span class="icon">📊</span>
-                <text>CSV</text>
-            </button>
-            <button class="export-btn" @onclick="ExportToJson" title="导出JSON">
-                <span class="icon">📋</span>
-                <text>JSON</text>
-            </button>
-        </div>
     </div>
+    </div><!-- 固定头部区域结束 -->
 
+    <!-- 可滚动内容区域 -->
+    <div style="flex: 1; overflow-y: auto; min-height: 0;">
     <!-- 端口统计面板 -->
     @if (!_isLoading && _ports.Count > 0)
     {
@@ -178,7 +180,7 @@
         var systemPortCount = groupedStats.Count(g => g.Any(p => IsSystemService(p.ProcessName)));
         var favoritePortCount = groupedStats.Count(g => g.Any(p => p.IsFavorite));
 
-        <div class="stats-panel">
+        <div class="stats-panel" style="flex-shrink: 0;">
             <div class="stat-item">
                 <div class="stat-value">@uniquePortCount</div>
                 <div class="stat-label">总端口</div>
@@ -247,119 +249,93 @@
     {
         @if (_isTableView)
         {
-            <div class="port-table-container">
-                @{
-                    var tableGroupedPorts = _filteredPorts.GroupBy(p => p.Port).OrderBy(g => g.Key).ToList();
-                }
-                <table class="port-table">
-                    <thead>
-                        <tr>
-                            <th>端口</th>
-                            <th>协议</th>
-                            <th>方向</th>
-                            <th>进程名</th>
-                            <th>说明</th>
-                            <th>命令</th>
-                            <th>地址</th>
-                            <th>用户</th>
-                            <th>PID</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var group in tableGroupedPorts)
+            <div class="port-table-container" style="flex: 0 0 auto; display: flex; flex-direction: column;">
+                <MDataTable Items="_tableItems"
+                           Headers="_tableHeaders"
+                           ItemsPerPage="15"
+                           Class="port-data-table"
+                           Dense
+                           FixedHeader>
+                    <ItemColContent>
+                        @switch (context.Header.Value)
                         {
-                            var portNumber = group.Key;
-                            var tcpPort = group.FirstOrDefault(p => p.Protocol == "TCP");
-                            var udpPort = group.FirstOrDefault(p => p.Protocol == "UDP");
-                            var primaryPort = tcpPort ?? udpPort;
-                            var hasTcp = tcpPort != null;
-                            var hasUdp = udpPort != null;
-                            var hasBoth = hasTcp && hasUdp;
-                            var hasTunnel = TunnelService.HasTunnelForPort(portNumber);
-
-                            <tr @onclick="@(() => { if (primaryPort != null) ShowPortDetails(primaryPort); })" style="cursor: pointer;" class="@(hasTunnel ? "has-tunnel" : "")">
-                                <td>
-                                    @portNumber
-                                </td>
-                                <td>
-                                    @if (hasBoth)
-                                    {
-                                        <span class="protocol-badge both" title="同时支持 TCP 和 UDP">TCP+UDP</span>
-                                    }
-                                    else if (hasTcp)
-                                    {
-                                        <span class="protocol-badge tcp">TCP</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="protocol-badge udp">UDP</span>
-                                    }
-                                </td>
-                                <td>
-                                    @GetAccessDirectionBadge(primaryPort.AccessDirection)
-                                </td>
-                                <td>
-                                    @(primaryPort?.ProcessName ?? "Unknown")
-                                    @if (primaryPort != null && IsSystemService(primaryPort.ProcessName))
-                                    {
-                                        <span class="system-service-badge" title="@GetSystemServiceDescription(primaryPort.ProcessName)">🛡️</span>
-                                    }
-                                </td>
-                                <td class="description-cell">
-                                    @if (primaryPort != null && IsSystemService(primaryPort.ProcessName))
-                                    {
-                                        <span class="description-text">@GetSystemServiceDescription(primaryPort.ProcessName)</span>
-                                    }
-                                    else if (primaryPort != null)
-                                    {
-                                        var portDesc = GetPortDescription(primaryPort.Port);
-                                        if (!string.IsNullOrEmpty(portDesc))
-                                        {
-                                            <span class="description-text">@portDesc</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="description-text text-muted">-</span>
-                                        }
-                                    }
-                                </td>
-                                <td>@(primaryPort?.Command ?? "-")</td>
-                                <td>@(primaryPort?.Address ?? "-")</td>
-                                <td>@(primaryPort?.User ?? "-")</td>
-                                <td>
-                                    @if (primaryPort?.Pid > 0)
-                                    {
-                                        <span>@primaryPort.Pid</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted" title="系统进程或无法获取">-</span>
-                                    }
-                                </td>
-                                <td>
-                                    <div class="table-actions" @onclick:stopPropagation>
-                                        <button class="btn-icon @(primaryPort.IsFavorite ? "favorite" : "")" @onclick="@(() => ToggleFavorite(portNumber))" title="收藏">
-                                            <span>@(primaryPort.IsFavorite ? "★" : "☆")</span>
-                                        </button>
-                                        <button class="btn-icon @(primaryPort.IsWatched ? "watched" : "")" @onclick="@(() => ToggleWatch(portNumber))" title="监控">
-                                            <span>@(primaryPort.IsWatched ? "👁️" : "👁")</span>
-                                        </button>
-                                        <button class="btn-icon btn-tunnel @(hasTunnel ? "active" : "")" @onclick="@(() => CreateTunnelForPort(portNumber))" title="@(hasTunnel ? "已创建隧道" : "创建隧道")">
-                                            <span>@(hasTunnel ? "🔗" : "🌐")</span>
-                                        </button>
-                                        <button class="btn-icon btn-info" @onclick="@(() => ShowPortDetails(primaryPort))" title="查看详情">
-                                            <span>ℹ</span>
-                                        </button>
-                                        <button class="btn-icon btn-danger" @onclick="@(() => KillPort(portNumber))" title="终止">
-                                            <span>✕</span>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
+                            case nameof(PortTableItem.Port):
+                                <span class="font-weight-bold">@context.Item.Port</span>
+                                break;
+                            case nameof(PortTableItem.Protocol):
+                                @if (context.Item.Protocol == "TCP+UDP")
+                                {
+                                    <span class="protocol-badge both" title="同时支持 TCP 和 UDP">TCP+UDP</span>
+                                }
+                                else if (context.Item.Protocol == "TCP")
+                                {
+                                    <span class="protocol-badge tcp">TCP</span>
+                                }
+                                else
+                                {
+                                    <span class="protocol-badge udp">UDP</span>
+                                }
+                                break;
+                            case nameof(PortTableItem.Direction):
+                                @((MarkupString)context.Item.Direction)
+                                break;
+                            case nameof(PortTableItem.ProcessName):
+                                <span>@context.Item.ProcessName</span>
+                                @if (context.Item.IsSystemService)
+                                {
+                                    <span class="system-service-badge" title="系统进程">🛡️</span>
+                                }
+                                break;
+                            case nameof(PortTableItem.Description):
+                                <span class="description-text">@context.Item.Description</span>
+                                break;
+                            case nameof(PortTableItem.Command):
+                                <span class="text-truncate" style="max-width: 200px; display: inline-block;">@context.Item.Command</span>
+                                break;
+                            case nameof(PortTableItem.Address):
+                                <span>@context.Item.Address</span>
+                                break;
+                            case nameof(PortTableItem.User):
+                                <span>@context.Item.User</span>
+                                break;
+                            case nameof(PortTableItem.Pid):
+                                @if (context.Item.Pid.HasValue)
+                                {
+                                    <span>@context.Item.Pid</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                                break;
+                            case "Actions":
+                                <div class="table-actions">
+                                    <MButton Icon Small OnClick="@(() => ToggleFavorite(context.Item.Port))" Title="收藏">
+                                        <MIcon Color="@(context.Item.IsFavorite ? "amber" : "grey")">
+                                            @(context.Item.IsFavorite ? "mdi-star" : "mdi-star-outline")
+                                        </MIcon>
+                                    </MButton>
+                                    <MButton Icon Small OnClick="@(() => ToggleWatch(context.Item.Port))" Title="监控">
+                                        <MIcon Color="@(context.Item.IsWatched ? "primary" : "grey")">
+                                            @(context.Item.IsWatched ? "mdi-eye" : "mdi-eye-outline")
+                                        </MIcon>
+                                    </MButton>
+                                    <MButton Icon Small OnClick="@(() => CreateTunnelForPort(context.Item.Port))" Title="@(context.Item.HasTunnel ? "已创建隧道" : "创建隧道")">
+                                        <MIcon Color="@(context.Item.HasTunnel ? "success" : "grey")">
+                                            @(context.Item.HasTunnel ? "mdi-link-variant" : "mdi-web")
+                                        </MIcon>
+                                    </MButton>
+                                    <MButton Icon Small OnClick="@(() => ShowPortDetails(context.Item.PrimaryPort))" Title="查看详情">
+                                        <MIcon Color="info">mdi-information</MIcon>
+                                    </MButton>
+                                    <MButton Icon Small Color="error" OnClick="@(() => KillPort(context.Item.Port))" Title="终止">
+                                        <MIcon>mdi-close</MIcon>
+                                    </MButton>
+                                </div>
+                                break;
                         }
-                    </tbody>
-                </table>
+                    </ItemColContent>
+                </MDataTable>
             </div>
         }
         else
@@ -461,8 +437,9 @@
             </div>
         }
     }
-    </MContainer>
-</div>
+    </div><!-- 可滚动内容区域结束 -->
+</div><!-- pa-2 div 结束 -->
+</div><!-- container div 结束 -->
 
 @if (_showPortDetailsModal && _selectedPort != null)
 {
@@ -986,19 +963,61 @@
     }
     
     .port-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 16px;
-        justify-content: flex-start;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+        width: 100%;
+    }
+    
+    /* 大屏幕显示8列 */
+    @@media (min-width: 1920px) {
+        .port-list {
+            grid-template-columns: repeat(8, 1fr);
+        }
+    }
+    
+    /* 中等屏幕显示6列 */
+    @@media (min-width: 1440px) and (max-width: 1919px) {
+        .port-list {
+            grid-template-columns: repeat(6, 1fr);
+        }
+    }
+    
+    /* 小屏幕显示4列 */
+    @@media (min-width: 1024px) and (max-width: 1439px) {
+        .port-list {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+    
+    /* 平板显示3列 */
+    @@media (min-width: 768px) and (max-width: 1023px) {
+        .port-list {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+    
+    /* 手机显示2列 */
+    @@media (min-width: 480px) and (max-width: 767px) {
+        .port-list {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    /* 小手机显示1列 */
+    @@media (max-width: 479px) {
+        .port-list {
+            grid-template-columns: 1fr;
+        }
     }
     
     .port-card {
-        width: 300px;
         background: #2a2a2a;
         border-radius: 12px;
-        padding: 20px;
+        padding: 16px;
         border: 1px solid #353535;
         transition: all 0.3s ease;
+        min-width: 0;
     }
     
     .port-card:hover {
@@ -1471,6 +1490,65 @@
         border-radius: 12px;
         overflow: hidden;
         border: 1px solid #353535;
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    /* MASA DataTable 样式 */
+    .port-data-table {
+        background: #2a2a2a !important;
+    }
+
+    .port-data-table.flex-grow-1 {
+        flex: 1 1 auto;
+    }
+
+    .port-data-table .m-data-table__wrapper {
+        max-height: calc(100vh - 400px) !important;
+    }
+
+    .port-data-table .m-data-table-header {
+        background: #252525 !important;
+    }
+
+    .port-data-table .m-data-table-header th {
+        color: #a0a0a0 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        border-bottom: 1px solid #353535 !important;
+    }
+
+    .port-data-table .m-data-table__wrapper {
+        background: #2a2a2a !important;
+    }
+
+    .port-data-table tbody tr {
+        border-bottom: 1px solid #353535 !important;
+    }
+
+    .port-data-table tbody tr:hover {
+        background: #333333 !important;
+    }
+
+    .port-data-table tbody td {
+        color: #e0e0e0 !important;
+        font-size: 14px !important;
+        border-bottom: 1px solid #353535 !important;
+    }
+
+    .port-data-table .m-data-table__fixed-left,
+    .port-data-table .m-data-table__fixed-right {
+        background: #2a2a2a !important;
+        box-shadow: 0 0 10px rgba(0,0,0,0.3) !important;
+    }
+
+    .port-data-table .m-data-table__fixed-left::after,
+    .port-data-table .m-data-table__fixed-right::after {
+        background: linear-gradient(to right, rgba(0,0,0,0.2), transparent) !important;
     }
 
     .port-table {
@@ -1805,6 +1883,7 @@
         border: 1px solid #353535;
         border-radius: 12px;
         flex-wrap: wrap;
+        flex-shrink: 0;
     }
 
     .stat-item {
@@ -2594,7 +2673,53 @@
         background: #ffffff;
         border: 1px solid #dee2e6;
     }
-    
+
+    /* 浅色主题 MASA DataTable 样式 */
+    .container.light .port-data-table {
+        background: #ffffff !important;
+    }
+
+    .container.light .port-data-table .m-data-table-header {
+        background: #f8f9fa !important;
+    }
+
+    .container.light .port-data-table .m-data-table-header th {
+        color: #495057 !important;
+        border-bottom: 1px solid #dee2e6 !important;
+    }
+
+    .container.light .port-data-table .m-data-table__wrapper {
+        background: #ffffff !important;
+    }
+
+    .container.light .port-data-table tbody tr {
+        border-bottom: 1px solid #dee2e6 !important;
+    }
+
+    .container.light .port-data-table tbody tr:hover {
+        background: #f8f9fa !important;
+    }
+
+    .container.light .port-data-table tbody td {
+        color: #495057 !important;
+        border-bottom: 1px solid #dee2e6 !important;
+    }
+
+    .container.light .port-data-table .m-data-table__fixed-left,
+    .container.light .port-data-table .m-data-table__fixed-right {
+        background: #ffffff !important;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1) !important;
+    }
+
+    .container.light .port-data-table .m-data-table__fixed-left::after,
+    .container.light .port-data-table .m-data-table__fixed-right::after {
+        background: linear-gradient(to right, rgba(0,0,0,0.1), transparent) !important;
+    }
+
+    .container.light .port-data-table .m-data-table__wrapper {
+        max-height: calc(100vh - 400px) !important;
+    }
+
     .container.light .port-table {
         background: #ffffff;
     }
@@ -2929,8 +3054,43 @@
 </style>
 
 @code {
+    // 表格数据模型
+    public class PortTableItem
+    {
+        public int Port { get; set; }
+        public string Protocol { get; set; } = "";
+        public string Direction { get; set; } = "";
+        public string ProcessName { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Command { get; set; } = "";
+        public string Address { get; set; } = "";
+        public string User { get; set; } = "";
+        public int? Pid { get; set; }
+        public bool HasTunnel { get; set; }
+        public bool IsFavorite { get; set; }
+        public bool IsWatched { get; set; }
+        public bool IsSystemService { get; set; }
+        public PortInfo? PrimaryPort { get; set; }
+    }
+
     private List<PortInfo> _ports = new();
     private List<PortInfo> _filteredPorts = new();
+    private List<PortTableItem> _tableItems = new();
+
+    // 表格表头定义
+    private List<DataTableHeader<PortTableItem>> _tableHeaders = new()
+    {
+        new() { Text = "端口", Value = nameof(PortTableItem.Port), Fixed = DataTableFixed.Left, Width = 60, Sortable = true },
+        new() { Text = "协议", Value = nameof(PortTableItem.Protocol), Width = 80, Sortable = true },
+        new() { Text = "方向", Value = nameof(PortTableItem.Direction), Width = 80 },
+        new() { Text = "PID", Value = nameof(PortTableItem.Pid), Width = 60, Sortable = true },
+        new() { Text = "进程名", Value = nameof(PortTableItem.ProcessName), Width = 100, Sortable = true },
+        new() { Text = "说明", Value = nameof(PortTableItem.Description), Width = 150 },
+        new() { Text = "命令", Value = nameof(PortTableItem.Command), Width = 200 },
+        new() { Text = "地址", Value = nameof(PortTableItem.Address), Width = 100, Sortable = true },
+        new() { Text = "用户", Value = nameof(PortTableItem.User), Width = 80, Sortable = true },
+        new() { Text = "操作", Value = "Actions", Fixed = DataTableFixed.Right, Width = 160, Sortable = false }
+    };
     private bool _isLoading = false;
     private bool _isRefreshing = false;
     private string _searchText = string.Empty;
@@ -3588,6 +3748,56 @@
             nameof(PortInfo.Pid) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.Pid).ToList() : _filteredPorts.OrderBy(p => p.Pid).ToList(),
             _ => _filteredPorts
         };
+
+        // 更新表格数据
+        UpdateTableItems();
+    }
+
+    private void UpdateTableItems()
+    {
+        var groupedPorts = _filteredPorts.GroupBy(p => p.Port).OrderBy(g => g.Key);
+        _tableItems = groupedPorts.Select(group =>
+        {
+            var tcpPort = group.FirstOrDefault(p => p.Protocol == "TCP");
+            var udpPort = group.FirstOrDefault(p => p.Protocol == "UDP");
+            var primaryPort = tcpPort ?? udpPort;
+            var hasTcp = tcpPort != null;
+            var hasUdp = udpPort != null;
+            var hasBoth = hasTcp && hasUdp;
+
+            string description;
+            if (primaryPort != null && IsSystemService(primaryPort.ProcessName))
+            {
+                description = GetSystemServiceDescription(primaryPort.ProcessName);
+            }
+            else if (primaryPort != null)
+            {
+                var portDesc = GetPortDescription(primaryPort.Port);
+                description = !string.IsNullOrEmpty(portDesc) ? portDesc : "-";
+            }
+            else
+            {
+                description = "-";
+            }
+
+            return new PortTableItem
+            {
+                Port = group.Key,
+                Protocol = hasBoth ? "TCP+UDP" : (hasTcp ? "TCP" : "UDP"),
+                Direction = GetAccessDirectionText(primaryPort?.AccessDirection ?? PortAccessDirection.Unknown),
+                ProcessName = primaryPort?.ProcessName ?? "Unknown",
+                Description = description,
+                Command = primaryPort?.Command ?? "-",
+                Address = primaryPort?.Address ?? "-",
+                User = primaryPort?.User ?? "-",
+                Pid = primaryPort?.Pid > 0 ? primaryPort.Pid : null,
+                HasTunnel = TunnelService.HasTunnelForPort(group.Key),
+                IsFavorite = primaryPort?.IsFavorite ?? false,
+                IsWatched = primaryPort?.IsWatched ?? false,
+                IsSystemService = primaryPort != null && IsSystemService(primaryPort.ProcessName),
+                PrimaryPort = primaryPort
+            };
+        }).ToList();
     }
 
     // 系统服务进程列表及描述
@@ -4302,6 +4512,18 @@
             PortAccessDirection.Outbound => @<span class="access-badge outbound" title="仅允许出站">📤 出站</span>,
             PortAccessDirection.Blocked => @<span class="access-badge blocked" title="已阻止">🚫 阻止</span>,
             _ => @<span class="access-badge unknown" title="未知">❓ 未知</span>
+        };
+    }
+
+    private string GetAccessDirectionText(PortAccessDirection direction)
+    {
+        return direction switch
+        {
+            PortAccessDirection.Bidirectional => "<span class=\"access-badge bidirectional\" title=\"允许入站和出站\">🔄 双向</span>",
+            PortAccessDirection.Inbound => "<span class=\"access-badge inbound\" title=\"仅允许入站\">📥 入站</span>",
+            PortAccessDirection.Outbound => "<span class=\"access-badge outbound\" title=\"仅允许出站\">📤 出站</span>",
+            PortAccessDirection.Blocked => "<span class=\"access-badge blocked\" title=\"已阻止\">🚫 阻止</span>",
+            _ => "<span class=\"access-badge unknown\" title=\"未知\">❓ 未知</span>"
         };
     }
 

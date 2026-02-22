@@ -11,9 +11,15 @@ public partial class MainForm : Form
     {
         InitializeComponent();
 
+        // Set window icon
+        this.Icon = new System.Drawing.Icon("appicon.ico");
+
         var services = new ServiceCollection();
         services.AddWindowsFormsBlazorWebView();
         services.AddMasaBlazor();
+
+        // Add HttpClient
+        services.AddHttpClient();
 
         // Add PortManager services
         services.AddSingleton<SettingsService>();
