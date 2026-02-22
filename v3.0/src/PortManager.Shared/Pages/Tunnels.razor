@@ -77,6 +77,10 @@
                                 <MIcon XSmall Left>mdi-close-circle</MIcon>
                                 未安装
                             </MChip>
+                            <MButton Color="info" OnClick="@ShowInstallGuide" Small Outlined>
+                                <MIcon XSmall Left>mdi-help-circle</MIcon>
+                                安装指南
+                            </MButton>
                         }
                     </div>
                     <MSpacer></MSpacer>
@@ -341,6 +345,122 @@
     }
 </div>
 
+<!-- 安装指南对话框 -->
+<MDialog @bind-Value="_showInstallGuide" MaxWidth="800" Persistent="false">
+    <MCard>
+        <MCardTitle>
+            <MIcon Class="mr-2" Color="primary">mdi-download</MIcon>
+            Cloudflared 安装指南
+        </MCardTitle>
+        <MCardText>
+            <MTabs Value="_installGuideTab" ValueChanged="@(v => _installGuideTab = v.ToInt32())" Grow>
+                <MTab>
+                    <MIcon Small Left>mdi-microsoft-windows</MIcon>
+                    Windows
+                </MTab>
+                <MTab>
+                    <MIcon Small Left>mdi-linux</MIcon>
+                    Linux
+                </MTab>
+                <MTab>
+                    <MIcon Small Left>mdi-apple</MIcon>
+                    macOS
+                </MTab>
+            </MTabs>
+
+            <MTabsItems Value="_installGuideTab">
+                <MTabItem>
+                    <div class="pa-4">
+                        <h3 class="text-h6 mb-3">Windows 安装方法</h3>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">方法 1: 使用 Chocolatey (推荐)</h4>
+                        <div class="code-block mb-3">choco install cloudflared</div>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">方法 2: 使用 Scoop</h4>
+                        <div class="code-block mb-3">scoop install cloudflared</div>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">方法 3: 手动下载</h4>
+                        <ol class="mb-3">
+                            <li>访问 <a href="https://github.com/cloudflare/cloudflared/releases" target="_blank">GitHub Releases</a></li>
+                            <li>下载 cloudflared-windows-amd64.exe</li>
+                            <li>重命名为 cloudflared.exe</li>
+                            <li>将文件放入 C:\Windows\System32 或添加到 PATH</li>
+                        </ol>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">验证安装</h4>
+                        <div class="code-block">cloudflared --version</div>
+                    </div>
+                </MTabItem>
+
+                <MTabItem>
+                    <div class="pa-4">
+                        <h3 class="text-h6 mb-3">Linux 安装方法</h3>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">Debian/Ubuntu (推荐)</h4>
+                        <div class="code-block mb-3"># 添加 Cloudflare 仓库
+wget -q https://pkg.cloudflare.com/cloudflare-main.gpg -O /usr/share/keyrings/cloudflare-main.gpg
+echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflared.list
+
+# 安装 cloudflared
+sudo apt-get update && sudo apt-get install cloudflared</div>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">CentOS/RHEL/Fedora</h4>
+                        <div class="code-block mb-3"># 下载并安装
+wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-x86_64.rpm
+sudo rpm -i cloudflared-linux-x86_64.rpm</div>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">通用方法 (适用于所有发行版)</h4>
+                        <div class="code-block mb-3"># 下载最新版本
+sudo wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared
+
+# 添加执行权限
+sudo chmod +x /usr/local/bin/cloudflared
+
+# 验证安装
+cloudflared --version</div>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">Arch Linux</h4>
+                        <div class="code-block mb-3">yay -S cloudflared-bin
+# 或
+sudo pacman -S cloudflared</div>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">验证安装</h4>
+                        <div class="code-block">cloudflared --version</div>
+                    </div>
+                </MTabItem>
+
+                <MTabItem>
+                    <div class="pa-4">
+                        <h3 class="text-h6 mb-3">macOS 安装方法</h3>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">使用 Homebrew (推荐)</h4>
+                        <div class="code-block mb-3">brew install cloudflared</div>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">手动下载</h4>
+                        <ol class="mb-3">
+                            <li>访问 <a href="https://github.com/cloudflare/cloudflared/releases" target="_blank">GitHub Releases</a></li>
+                            <li>下载 cloudflared-darwin-amd64.tgz (Intel) 或 cloudflared-darwin-arm64.tgz (Apple Silicon)</li>
+                            <li>解压并移动到 PATH 目录</li>
+                        </ol>
+                        <div class="code-block mb-3"># 示例 (Intel Mac)
+tar -xzf cloudflared-darwin-amd64.tgz
+mv cloudflared /usr/local/bin/</div>
+                        
+                        <h4 class="text-subtitle-1 font-weight-bold mb-2">验证安装</h4>
+                        <div class="code-block">cloudflared --version</div>
+                    </div>
+                </MTabItem>
+            </MTabsItems>
+        </MCardText>
+        <MCardActions>
+            <MSpacer></MSpacer>
+            <MButton Color="primary" OnClick="@(() => _showInstallGuide = false)">
+                关闭
+            </MButton>
+        </MCardActions>
+    </MCard>
+</MDialog>
+
 @code {
     private List<CloudflareTunnel> _tunnels = new();
     private CloudflaredStatus? _cloudflaredStatus;
@@ -356,6 +476,8 @@
     private bool _showTunnelInfoBox = true;
     private System.Threading.Timer? _tunnelTimer;
     private bool _isInitialized = false;
+    private bool _showInstallGuide = false;
+    private int _installGuideTab = 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -605,6 +727,12 @@
         StateHasChanged();
     }
 
+    private void ShowInstallGuide()
+    {
+        _showInstallGuide = true;
+        StateHasChanged();
+    }
+
     private void HideNotification()
     {
         _showNotification = false;
@@ -710,3 +838,37 @@
         return $"{diff.TotalSeconds:F0}秒前";
     }
 }
+
+<style>
+    .code-block {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        border: 1px solid #333;
+    }
+    
+    .code-block::-webkit-scrollbar {
+        height: 8px;
+    }
+    
+    .code-block::-webkit-scrollbar-track {
+        background: #2d2d2d;
+        border-radius: 4px;
+    }
+    
+    .code-block::-webkit-scrollbar-thumb {
+        background: #555;
+        border-radius: 4px;
+    }
+    
+    .code-block::-webkit-scrollbar-thumb:hover {
+        background: #666;
+    }
+</style>
