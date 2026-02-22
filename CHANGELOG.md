@@ -1,5 +1,31 @@
 # PortManager 更新日志
 
+## v3.0.0 (2026-02-22)
+
+### 重大更新
+
+#### 1. 桌面版本发布
+- **WinForms Blazor Hybrid**：全新桌面应用程序
+- **统一代码库**：桌面版和 Web 版共用同一套代码
+- **离线运行**：无需浏览器，独立运行
+- **系统集成**：更好的 Windows 系统集成
+
+#### 2. 项目结构重构
+- **共享类库**：提取 Core 和 Shared 类库
+- **多平台支持**：Web (Blazor Server) + Desktop (WinForms)
+- **代码复用**：避免重复代码，易于维护
+
+### 项目结构
+```
+port-killer/
+├── platforms/
+│   ├── blazor/PortManager/      # Web 版本
+│   └── desktop/PortManager.Desktop/  # 桌面版本
+├── src/
+│   ├── PortManager.Core/        # 核心类库 (Models + Services)
+│   └── PortManager.Shared/      # 共享组件 (Razor)
+```
+
 ## v2.1.0 (2026-02-22)
 
 ### 新增功能
