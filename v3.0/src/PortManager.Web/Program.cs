@@ -8,6 +8,9 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddMasaBlazor();
 
+// Add HttpClient
+builder.Services.AddHttpClient();
+
 // Add PortManager services
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<NotificationService>();
