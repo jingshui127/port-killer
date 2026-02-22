@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PortManager.Core/PortManager.Core.csproj" />
+    <Project Path="src/PortManager.Desktop/PortManager.Desktop.csproj" />
+    <Project Path="src/PortManager.Shared/PortManager.Shared.csproj" />
+    <Project Path="src/PortManager.Web/PortManager.Web.csproj" />
+  </Folder>
+</Solution>

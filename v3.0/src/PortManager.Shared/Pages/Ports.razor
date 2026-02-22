@@ -1,0 +1,4347 @@
+@page "/ports"
+@using NewLife.Log
+@using PortManager.Services
+@using PortManager.Models
+@using Masa.Blazor
+@using System.Text
+@using System.IO
+@implements IDisposable
+@inject PortScannerService PortScanner
+@inject NavigationManager Navigation
+@inject ThemeService ThemeService
+@inject TunnelService TunnelService
+@inject NotificationService NotificationService
+@inject IJSRuntime JSRuntime
+@inject FirewallService FirewallService
+
+<PageTitle>端口管理</PageTitle>
+
+<NavigationMenu />
+
+<div class="container @(IsLightTheme ? "light" : "")">
+    <MContainer Class="pt-2">
+        <MRow Dense>
+            <MCol Cols="12" Class="text-center">
+                <h2 class="text-h4 font-weight-bold">端口管理</h2>
+                <p class="text-body2 text--secondary">查看和管理系统端口</p>
+            </MCol>
+        </MRow>
+
+        <!-- 状态信息行 -->
+        <MRow Dense>
+            <MCol Cols="12" Class="text-center">
+                <div class="status-group-inline">
+                    @if (_autoRefreshEnabled)
+                    {
+                        <div class="status-badge auto-refresh-badge" title="自动刷新已开启">
+                            <span class="pulse-dot"></span>
+                            <span class="value">自动</span>
+                        </div>
+                    }
+                    @if (_lastRefreshTime > DateTime.MinValue)
+                    {
+                        <div class="status-badge time-badge" title="最后刷新时间">
+                            <span class="icon @(_isLoading || _isRefreshing || _refreshProgressTimer != null ? "spin" : "")">🕐</span>
+                            <span class="value">@GetLastRefreshTimeText()</span>
+                        </div>
+                    }
+                    @if (_isLoading || _isRefreshing || _refreshProgressTimer != null)
+                    {
+                        <div class="status-badge duration-badge active" title="刷新中...">
+                            <span class="icon spin">⏱</span>
+                            <span class="value">@GetCurrentRefreshDurationText()</span>
+                        </div>
+                    }
+                    else if (_lastRefreshDuration > TimeSpan.Zero)
+                    {
+                        <div class="status-badge duration-badge" title="上次刷新耗时">
+                            <span class="icon">⏱</span>
+                            <span class="value">@GetRefreshDurationText()</span>
+                        </div>
+                    }
+                    <div class="status-badge refresh-badge" title="刷新计数">
+                        <span class="icon @(_isRefreshing ? "spin" : "")">⟳</span>
+                        <span class="value">@_refreshCount</span>
+                    </div>
+                </div>
+            </MCol>
+        </MRow>
+
+        @if (_showNotification)
+        {
+            <div class="notification @_notificationType">
+                <span class="notification-icon">@_notificationIcon</span>
+                <span class="notification-message">@_notificationMessage</span>
+                <button class="notification-close" @onclick="@HideNotification">✕</button>
+            </div>
+        }
+
+    <div class="actions-container">
+        <!-- 操作按钮组 -->
+        <div class="actions-group">
+            <button class="btn btn-primary @(_isRefreshing ? "refreshing" : "")" @onclick="@RefreshPorts" disabled="@_isRefreshing">
+                <span class="icon @(_isRefreshing ? "spin" : "")">↻</span>
+                <text>@(_isRefreshing ? "刷新中..." : "刷新")</text>
+            </button>
+            <button class="btn btn-secondary" @onclick="@ToggleAutoRefresh" title="自动刷新">
+                <span class="icon">@(_autoRefreshEnabled ? "⏸" : "▶")</span>
+                <text>@(_autoRefreshEnabled ? "暂停" : "自动")</text>
+            </button>
+            <button class="btn btn-secondary" @onclick="@ShowNotificationHistory" title="通知历史">
+                <span class="icon">🔔</span>
+                <text>通知历史</text>
+            </button>
+        </div>
+
+        <!-- 批量操作组 -->
+        @if (_selectedPorts.Count > 0)
+        {
+            <div class="batch-actions-group">
+                <span class="selected-count">已选择 @_selectedPorts.Count 个端口</span>
+                <button class="btn btn-danger" @onclick="@BatchKillPorts" title="批量终止">
+                    <span class="icon">✕</span>
+                    <text>终止选中</text>
+                </button>
+                <button class="btn btn-secondary" @onclick="@ClearSelection" title="清除选择">
+                    <span class="icon">✕</span>
+                    <text>清除</text>
+                </button>
+            </div>
+        }
+    </div>
+
+    <div class="filter-search-container">
+        <div class="filter-buttons">
+            <button class="filter-btn @((!_showFavoritesOnly && !_showWatchedOnly && !_showSystemServicesOnly) ? "active" : "")" @onclick="@(() => ToggleFilter("all"))">
+                <span class="icon">📋</span>
+                <text>全部</text>
+            </button>
+            <button class="filter-btn @(_showFavoritesOnly ? "active" : "")" @onclick="@(() => ToggleFilter("favorites"))">
+                <span class="icon">★</span>
+                <text>收藏</text>
+            </button>
+            <button class="filter-btn @(_showWatchedOnly ? "active" : "")" @onclick="@(() => ToggleFilter("watched"))">
+                <span class="icon">👁</span>
+                <text>监控</text>
+            </button>
+            <button class="filter-btn @(_showSystemServicesOnly ? "active" : "")" @onclick="@(() => ToggleFilter("system"))">
+                <span class="icon">🛡️</span>
+                <text>系统</text>
+            </button>
+            <button class="filter-btn @(_showTcpOnly ? "active" : "")" @onclick="@(() => ToggleFilter("tcp"))">
+                <span class="icon">🟢</span>
+                <text>TCP</text>
+            </button>
+            <button class="filter-btn @(_showUdpOnly ? "active" : "")" @onclick="@(() => ToggleFilter("udp"))">
+                <span class="icon">🟠</span>
+                <text>UDP</text>
+            </button>
+            <button class="view-toggle-btn @(_isTableView ? "active" : "")" @onclick="@ToggleView" title="切换视图">
+                <span class="icon">@(_isTableView ? "📋" : "▦")</span>
+                <text>@(_isTableView ? "卡片" : "表格")</text>
+            </button>
+        </div>
+
+        <div class="search-box">
+            <input type="text" @bind="_searchText" placeholder="搜索端口、进程名或地址..." @oninput="OnSearchInput" />
+            <span class="search-icon">🔍</span>
+        </div>
+
+        <div class="port-range-filter">
+            <span class="range-label">端口范围:</span>
+            <input type="number" @bind="_portRangeStart" placeholder="起始" min="1" max="65535" @oninput="OnPortRangeInput" />
+            <span class="range-separator">-</span>
+            <input type="number" @bind="_portRangeEnd" placeholder="结束" min="1" max="65535" @oninput="OnPortRangeInput" />
+            <button class="clear-range-btn" @onclick="ClearPortRange" title="清除范围">✕</button>
+        </div>
+
+        <div class="export-group">
+            <button class="export-btn" @onclick="ExportToCsv" title="导出CSV">
+                <span class="icon">📊</span>
+                <text>CSV</text>
+            </button>
+            <button class="export-btn" @onclick="ExportToJson" title="导出JSON">
+                <span class="icon">📋</span>
+                <text>JSON</text>
+            </button>
+        </div>
+    </div>
+
+    <!-- 端口统计面板 -->
+    @if (!_isLoading && _ports.Count > 0)
+    {
+        var groupedStats = _ports.GroupBy(p => p.Port).ToList();
+        var uniquePortCount = groupedStats.Count;
+        var tcpPortCount = groupedStats.Count(g => g.Any(p => p.Protocol == "TCP"));
+        var udpPortCount = groupedStats.Count(g => g.Any(p => p.Protocol == "UDP"));
+        var bothProtocolCount = groupedStats.Count(g => g.Any(p => p.Protocol == "TCP") && g.Any(p => p.Protocol == "UDP"));
+        var systemPortCount = groupedStats.Count(g => g.Any(p => IsSystemService(p.ProcessName)));
+        var favoritePortCount = groupedStats.Count(g => g.Any(p => p.IsFavorite));
+
+        <div class="stats-panel">
+            <div class="stat-item">
+                <div class="stat-value">@uniquePortCount</div>
+                <div class="stat-label">总端口</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value tcp">@tcpPortCount</div>
+                <div class="stat-label">TCP</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value udp">@udpPortCount</div>
+                <div class="stat-label">UDP</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value both">@bothProtocolCount</div>
+                <div class="stat-label">TCP+UDP</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value system">@systemPortCount</div>
+                <div class="stat-label">系统</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value favorite">@favoritePortCount</div>
+                <div class="stat-label">收藏</div>
+            </div>
+            <div class="stat-bar-container">
+                <div class="stat-bar-label">TCP/UDP 分布</div>
+                <div class="stat-bar">
+                    @{
+                        var tcpOnlyCount = groupedStats.Count(g => g.Any(p => p.Protocol == "TCP") && !g.Any(p => p.Protocol == "UDP"));
+                        var udpOnlyCount = groupedStats.Count(g => g.Any(p => p.Protocol == "UDP") && !g.Any(p => p.Protocol == "TCP"));
+                        var bothCount = bothProtocolCount;
+                        var totalPorts = uniquePortCount;
+                        var tcpOnlyPercent = totalPorts > 0 ? (tcpOnlyCount * 100.0 / totalPorts) : 0;
+                        var bothPercent = totalPorts > 0 ? (bothCount * 100.0 / totalPorts) : 0;
+                        var udpOnlyPercent = totalPorts > 0 ? (udpOnlyCount * 100.0 / totalPorts) : 0;
+                    }
+                    <div class="stat-bar-segment tcp" style="width: @tcpOnlyPercent%" title="仅 TCP: @tcpOnlyCount"></div>
+                    <div class="stat-bar-segment both" style="width: @bothPercent%" title="TCP+UDP: @bothCount"></div>
+                    <div class="stat-bar-segment udp" style="width: @udpOnlyPercent%" title="仅 UDP: @udpOnlyCount"></div>
+                </div>
+                <div class="stat-bar-legend">
+                    <span class="legend-item tcp">仅TCP @tcpOnlyCount</span>
+                    <span class="legend-item both">TCP+UDP @bothCount</span>
+                    <span class="legend-item udp">仅UDP @udpOnlyCount</span>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_isLoading)
+    {
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>正在扫描端口...</p>
+        </div>
+    }
+    else if (_filteredPorts.Count == 0)
+    {
+        <div class="empty">
+            <div class="empty-icon">☁</div>
+            <h2>无活动端口</h2>
+            <p>点击"刷新"按钮开始扫描</p>
+        </div>
+    }
+    else
+    {
+        @if (_isTableView)
+        {
+            <div class="port-table-container">
+                @{
+                    var tableGroupedPorts = _filteredPorts.GroupBy(p => p.Port).OrderBy(g => g.Key).ToList();
+                }
+                <table class="port-table">
+                    <thead>
+                        <tr>
+                            <th>端口</th>
+                            <th>协议</th>
+                            <th>方向</th>
+                            <th>进程名</th>
+                            <th>说明</th>
+                            <th>命令</th>
+                            <th>地址</th>
+                            <th>用户</th>
+                            <th>PID</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var group in tableGroupedPorts)
+                        {
+                            var portNumber = group.Key;
+                            var tcpPort = group.FirstOrDefault(p => p.Protocol == "TCP");
+                            var udpPort = group.FirstOrDefault(p => p.Protocol == "UDP");
+                            var primaryPort = tcpPort ?? udpPort;
+                            var hasTcp = tcpPort != null;
+                            var hasUdp = udpPort != null;
+                            var hasBoth = hasTcp && hasUdp;
+                            var hasTunnel = TunnelService.HasTunnelForPort(portNumber);
+
+                            <tr @onclick="@(() => { if (primaryPort != null) ShowPortDetails(primaryPort); })" style="cursor: pointer;" class="@(hasTunnel ? "has-tunnel" : "")">
+                                <td>
+                                    @portNumber
+                                </td>
+                                <td>
+                                    @if (hasBoth)
+                                    {
+                                        <span class="protocol-badge both" title="同时支持 TCP 和 UDP">TCP+UDP</span>
+                                    }
+                                    else if (hasTcp)
+                                    {
+                                        <span class="protocol-badge tcp">TCP</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="protocol-badge udp">UDP</span>
+                                    }
+                                </td>
+                                <td>
+                                    @GetAccessDirectionBadge(primaryPort.AccessDirection)
+                                </td>
+                                <td>
+                                    @(primaryPort?.ProcessName ?? "Unknown")
+                                    @if (primaryPort != null && IsSystemService(primaryPort.ProcessName))
+                                    {
+                                        <span class="system-service-badge" title="@GetSystemServiceDescription(primaryPort.ProcessName)">🛡️</span>
+                                    }
+                                </td>
+                                <td class="description-cell">
+                                    @if (primaryPort != null && IsSystemService(primaryPort.ProcessName))
+                                    {
+                                        <span class="description-text">@GetSystemServiceDescription(primaryPort.ProcessName)</span>
+                                    }
+                                    else if (primaryPort != null)
+                                    {
+                                        var portDesc = GetPortDescription(primaryPort.Port);
+                                        if (!string.IsNullOrEmpty(portDesc))
+                                        {
+                                            <span class="description-text">@portDesc</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="description-text text-muted">-</span>
+                                        }
+                                    }
+                                </td>
+                                <td>@(primaryPort?.Command ?? "-")</td>
+                                <td>@(primaryPort?.Address ?? "-")</td>
+                                <td>@(primaryPort?.User ?? "-")</td>
+                                <td>
+                                    @if (primaryPort?.Pid > 0)
+                                    {
+                                        <span>@primaryPort.Pid</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted" title="系统进程或无法获取">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="table-actions" @onclick:stopPropagation>
+                                        <button class="btn-icon @(primaryPort.IsFavorite ? "favorite" : "")" @onclick="@(() => ToggleFavorite(portNumber))" title="收藏">
+                                            <span>@(primaryPort.IsFavorite ? "★" : "☆")</span>
+                                        </button>
+                                        <button class="btn-icon @(primaryPort.IsWatched ? "watched" : "")" @onclick="@(() => ToggleWatch(portNumber))" title="监控">
+                                            <span>@(primaryPort.IsWatched ? "👁️" : "👁")</span>
+                                        </button>
+                                        <button class="btn-icon btn-tunnel @(hasTunnel ? "active" : "")" @onclick="@(() => CreateTunnelForPort(portNumber))" title="@(hasTunnel ? "已创建隧道" : "创建隧道")">
+                                            <span>@(hasTunnel ? "🔗" : "🌐")</span>
+                                        </button>
+                                        <button class="btn-icon btn-info" @onclick="@(() => ShowPortDetails(primaryPort))" title="查看详情">
+                                            <span>ℹ</span>
+                                        </button>
+                                        <button class="btn-icon btn-danger" @onclick="@(() => KillPort(portNumber))" title="终止">
+                                            <span>✕</span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="port-list">
+                @{
+                    var groupedPorts = _filteredPorts.GroupBy(p => p.Port).OrderBy(g => g.Key);
+                }
+                @foreach (var group in groupedPorts)
+                {
+                    var portNumber = group.Key;
+                    var tcpPort = group.FirstOrDefault(p => p.Protocol == "TCP");
+                    var udpPort = group.FirstOrDefault(p => p.Protocol == "UDP");
+                    var primaryPort = tcpPort ?? udpPort;
+                    var hasTcp = tcpPort != null;
+                    var hasUdp = udpPort != null;
+                    var hasBoth = hasTcp && hasUdp;
+                    var hasTunnel = TunnelService.HasTunnelForPort(portNumber);
+
+                    var isSystemProcess = primaryPort != null && IsSystemService(primaryPort.ProcessName);
+                    var portStatusClass = isSystemProcess ? "protected" : (primaryPort?.Pid > 0 ? "occupied" : "available");
+
+                    <div class="port-card @((primaryPort?.IsActive ?? false) ? "active" : "") @(_selectedPorts.Contains(portNumber) ? "selected" : "") @(hasTunnel ? "has-tunnel" : "")" @onclick="@(() => TogglePortSelection(portNumber, !_selectedPorts.Contains(portNumber)))">
+                        <div class="port-info">
+                            <div class="port-header">
+                                <div class="port-number">
+                                    <span class="status-dot @portStatusClass" title="@(isSystemProcess ? "系统进程（受保护）" : (primaryPort?.Pid > 0 ? "端口被占用" : "端口可用"))"></span>
+                                    <span class="value" title="@GetPortUsageDescription(portNumber)">@portNumber</span>
+                                    @if (hasBoth)
+                                    {
+                                        <span class="protocol-badge both" title="同时支持 TCP 和 UDP">TCP+UDP</span>
+                                    }
+                                    else if (hasTcp)
+                                    {
+                                        <span class="protocol-badge tcp">TCP</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="protocol-badge udp">UDP</span>
+                                    }
+                                    @GetAccessDirectionArrow(primaryPort.AccessDirection)
+                                </div>
+                                <div class="port-pid" title="@(primaryPort?.Pid > 0 ? $"PID: {primaryPort.Pid}" : "系统进程或无法获取")">
+                                    @if (isSystemProcess)
+                                    {
+                                        <span class="protected-badge" title="系统进程（受保护）">🛡️</span>
+                                    }
+                                    <span class="icon">@(primaryPort?.Pid > 0 ? "🔢" : "💻")</span>
+                                    <span class="text">@(primaryPort?.Pid > 0 ? primaryPort.Pid.ToString() : "-")</span>
+                                </div>
+                            </div>
+                            <div class="port-details">
+                                <div class="detail-row">
+                                    <div class="detail" title="@(primaryPort?.ProcessName ?? "Unknown")">
+                                        <span class="icon">⚙</span>
+                                        <span class="text text-truncate">@(primaryPort?.ProcessName ?? "Unknown")</span>
+                                        @if (primaryPort != null && IsSystemService(primaryPort.ProcessName))
+                                        {
+                                            <span class="system-service-badge" title="@GetSystemServiceDescription(primaryPort.ProcessName)">🛡️</span>
+                                        }
+                                    </div>
+                                    <div class="detail" title="@(primaryPort?.Command ?? "-")">
+                                        <span class="icon">📁</span>
+                                        <span class="text text-truncate">@(primaryPort?.Command ?? "-")</span>
+                                    </div>
+                                </div>
+                                <div class="detail-row">
+                                    <div class="detail" title="@(primaryPort?.Address ?? "-")">
+                                        <span class="icon">📍</span>
+                                        <span class="text text-truncate">@(primaryPort?.Address ?? "-")</span>
+                                    </div>
+                                    <div class="detail" title="@(primaryPort?.User ?? "-")">
+                                        <span class="icon">👤</span>
+                                        <span class="text">@(primaryPort?.User ?? "-")</span>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                        <div class="port-actions">
+                            <button class="btn-icon @(primaryPort.IsFavorite ? "favorite" : "")" @onclick="@(() => ToggleFavorite(portNumber))" @onclick:stopPropagation title="收藏">
+                                <span>@(primaryPort.IsFavorite ? "★" : "☆")</span>
+                            </button>
+                            <button class="btn-icon @(primaryPort.IsWatched ? "watched" : "")" @onclick="@(() => ToggleWatch(portNumber))" @onclick:stopPropagation title="监控">
+                                <span>@(primaryPort.IsWatched ? "👁" : "👁")</span>
+                            </button>
+                            <button class="btn-icon btn-tunnel @(hasTunnel ? "active" : "")" @onclick="@(() => CreateTunnelForPort(portNumber))" @onclick:stopPropagation title="@(hasTunnel ? "已创建隧道" : "创建隧道")">
+                                <span>@(hasTunnel ? "🔗" : "🌐")</span>
+                            </button>
+                            <button class="btn-icon btn-info" @onclick="@(() => ShowPortDetails(primaryPort))" @onclick:stopPropagation title="查看详情">
+                                <span>ℹ</span>
+                            </button>
+                            <button class="btn-icon btn-danger" @onclick="@(() => KillPort(portNumber))" @onclick:stopPropagation title="终止">
+                                <span>✕</span>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    </MContainer>
+</div>
+
+@if (_showPortDetailsModal && _selectedPort != null)
+{
+    var processDetails = GetProcessDetails(_selectedPort.Pid);
+    var isSystemProcess = IsSystemService(_selectedPort.ProcessName);
+    var canKill = _selectedPort.Pid > 4 && !isSystemProcess;
+
+    <div class="modal-overlay" @onclick="ClosePortDetailsModal">
+        <div class="modal-content port-details-modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2><span class="icon">📋</span> 进程详情</h2>
+                <button class="modal-close" @onclick="ClosePortDetailsModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-section">
+                    <div class="detail-row">
+                        <span class="detail-label">端口</span>
+                        <span class="detail-value">@_selectedPort.Port</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">协议</span>
+                        <span class="detail-value">@_selectedPort.Protocol</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">PID</span>
+                        <span class="detail-value">@_selectedPort.Pid @(isSystemProcess ? "🛡️" : "")</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">进程</span>
+                        <span class="detail-value">@_selectedPort.ProcessName</span>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_selectedPort.Command))
+                {
+                    <div class="detail-section">
+                        <div class="detail-label">路径</div>
+                        <div class="path-box" title="@_selectedPort.Command">@_selectedPort.Command</div>
+                    </div>
+                }
+
+                @if (processDetails != null)
+                {
+                    <div class="detail-section">
+                        <div class="detail-row">
+                            <span class="detail-label">内存</span>
+                            <span class="detail-value">@FormatMemory(processDetails.MemoryKB)</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">CPU</span>
+                            <span class="detail-value @GetCpuClass(processDetails.CpuPercent)">@processDetails.CpuPercent.ToString("F1")%</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">优先级</span>
+                            <span class="detail-value">@processDetails.Priority</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">启动时间</span>
+                            <span class="detail-value">@processDetails.StartTime</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">子进程</span>
+                            <span class="detail-value">@processDetails.ChildrenCount processes</span>
+                        </div>
+                    </div>
+                }
+
+                <div class="detail-section">
+                    <div class="detail-row">
+                        <span class="detail-label">状态</span>
+                        <span class="detail-value @GetStatusClass(processDetails?.ProcessStatus)">
+                            @GetStatusText(processDetails?.ProcessStatus, canKill)
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                @if (!string.IsNullOrEmpty(_selectedPort.Command))
+                {
+                    <button class="action-btn" @onclick="@(() => { _ = OpenProcessFolder(_selectedPort.Command); })">
+                        <span class="icon">📁</span> 打开文件夹
+                    </button>
+                }
+                <button class="action-btn" @onclick="@(() => { _ = OpenTaskManager(_selectedPort.Pid); })">
+                    <span class="icon">📊</span> 任务管理器
+                </button>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="@(() => { var port = _selectedPort?.Port ?? 0; ClosePortDetailsModal(); _ = CreateTunnelForPort(port); })">
+                    <span class="icon">🌐</span> 创建隧道
+                </button>
+                <button class="btn btn-danger" @onclick="@(() => { var port = _selectedPort?.Port ?? 0; ClosePortDetailsModal(); KillPort(port); })" disabled="@(!canKill)">
+                    <span class="icon">✕</span> 终止进程
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showNotificationHistoryModal)
+{
+    <div class="modal-overlay" @onclick="CloseNotificationHistoryModal">
+        <div class="modal-content notification-history-modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>通知历史</h2>
+                <button class="modal-close" @onclick="CloseNotificationHistoryModal">✕</button>
+            </div>
+            <div class="modal-body">
+                @if (_notificationHistory.Count == 0)
+                {
+                    <div class="empty-history">
+                        <span class="empty-icon">📭</span>
+                        <p>暂无通知历史</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="notification-history-list">
+                        @foreach (var notification in _notificationHistory)
+                        {
+                            <div class="notification-history-item @notification.Type">
+                                <div class="notification-history-header">
+                                    <span class="notification-history-icon">@notification.Icon</span>
+                                    <span class="notification-history-message">@notification.Message</span>
+                                    <span class="notification-history-time">@notification.Timestamp.ToString("HH:mm:ss")</span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(notification.Details))
+                                {
+                                    <div class="notification-history-details">@notification.Details</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="@ClearNotificationHistory">
+                    <span class="icon">🗑</span>
+                    <text>清除历史</text>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    /* 移除 body 样式，使用 Masa Blazor 主题变量 */
+    
+    .header {
+        text-align: center;
+        margin-bottom: 30px;
+        position: relative;
+        width: 100%;
+    }
+    
+    .header h1 {
+        font-size: 48px;
+        margin: 0 0 10px 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .subtitle {
+        font-size: 16px;
+        color: #a0a0a0;
+        margin: 0;
+    }
+
+    .status-group-inline {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin: 8px 0;
+        flex-wrap: wrap;
+    }
+
+    .actions-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        margin-top: 16px;
+        margin-bottom: 20px;
+        padding: 0 20px;
+    }
+
+    .actions-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .status-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        background: #252525;
+        border-radius: 12px;
+        border: 1px solid #353535;
+    }
+
+    .status-badge {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .status-badge .icon {
+        font-size: 12px;
+    }
+
+    .status-badge.port-badge {
+        background: linear-gradient(135deg, #1976d2, #2196f3);
+    }
+
+    .status-badge.time-badge {
+        background: linear-gradient(135deg, #607d8b, #78909c);
+    }
+
+    .status-badge.duration-badge {
+        background: linear-gradient(135deg, #ff9800, #ffb74d);
+    }
+
+    .status-badge.duration-badge.active {
+        background: linear-gradient(135deg, #f57c00, #ff9800);
+        animation: pulse 1s infinite;
+        box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+    }
+
+    .status-badge.refresh-badge {
+        background: linear-gradient(135deg, #4caf50, #66bb6a);
+        animation: pulse 2s infinite;
+    }
+
+    .batch-actions-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+        background: #2a2a2a;
+        border-radius: 12px;
+        border: 1px solid #353535;
+    }
+
+    .actions {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .port-count {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #2a2a2a;
+        border-radius: 8px;
+        border: 1px solid #353535;
+    }
+    
+    .count-label {
+        font-size: 14px;
+        color: #a0a0a0;
+    }
+    
+    .count-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #667eea;
+    }
+    
+    .port-count-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: linear-gradient(135deg, #1976d2, #2196f3);
+        border-radius: 20px;
+        color: white;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+    }
+    
+    .port-count-badge .badge-label {
+        font-size: 12px;
+        opacity: 0.9;
+    }
+    
+    .port-count-badge .badge-value {
+        font-size: 14px;
+        font-weight: 700;
+    }
+    
+    .refresh-counter-badge {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 10px;
+        background: linear-gradient(135deg, #4caf50, #66bb6a);
+        border-radius: 20px;
+        color: white;
+        font-weight: 600;
+        font-size: 12px;
+        box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+        animation: pulse 2s infinite;
+    }
+    
+    .refresh-counter-badge .refresh-icon {
+        animation: spin 2s linear infinite;
+    }
+    
+    .refresh-counter-badge .refresh-count {
+        font-weight: 700;
+        min-width: 20px;
+        text-align: center;
+    }
+
+    .last-refresh-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: linear-gradient(135deg, #607d8b, #78909c);
+        border-radius: 20px;
+        color: white;
+        font-weight: 500;
+        font-size: 12px;
+        box-shadow: 0 2px 8px rgba(96, 125, 139, 0.3);
+    }
+
+    .last-refresh-badge .icon {
+        font-size: 14px;
+    }
+
+    .last-refresh-badge .time {
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .refresh-duration-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: linear-gradient(135deg, #ff9800, #ffb74d);
+        border-radius: 20px;
+        color: white;
+        font-weight: 500;
+        font-size: 12px;
+        box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+    }
+
+    .refresh-duration-badge .icon {
+        font-size: 14px;
+    }
+
+    .refresh-duration-badge .time {
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .filter-search-container {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+    
+    .filter-buttons {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    
+    .filter-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background: #252525;
+        border: 1px solid #353535;
+        border-radius: 6px;
+        color: #a0a0a0;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 14px;
+    }
+    
+    .filter-btn:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+        color: #e0e0e0;
+    }
+    
+    .filter-btn.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+    
+    .view-toggle-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background: #252525;
+        border: 1px solid #353535;
+        border-radius: 6px;
+        color: #a0a0a0;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 14px;
+    }
+    
+    .view-toggle-btn:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+        color: #e0e0e0;
+    }
+    
+    .view-toggle-btn.active {
+        background: #9b59b6;
+        border-color: #9b59b6;
+        color: white;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 60px 20px;
+    }
+    
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #667eea;
+        border-top: 4px solid transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+    }
+    
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .icon.spin {
+        display: inline-block;
+        animation: spin 1s linear infinite;
+    }
+
+    .btn.refreshing {
+        opacity: 0.8;
+        cursor: not-allowed;
+    }
+
+    .empty {
+        text-align: center;
+        padding: 80px 20px;
+    }
+    
+    .empty-icon {
+        font-size: 80px;
+        margin-bottom: 20px;
+        opacity: 0.3;
+    }
+    
+    .empty h2 {
+        font-size: 24px;
+        margin: 0 0 10px 0;
+        color: #a0a0a0;
+    }
+    
+    .empty p {
+        color: #808080;
+        margin: 0;
+    }
+    
+    .port-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        justify-content: flex-start;
+    }
+    
+    .port-card {
+        width: 300px;
+        background: #2a2a2a;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #353535;
+        transition: all 0.3s ease;
+    }
+    
+    .port-card:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+        border: 1px solid #42a5f5 !important;
+        background: linear-gradient(145deg, #2d2d2d, #252525) !important;
+    }
+    
+    .port-card.active {
+        border-left: 4px solid #2ecc71;
+    }
+    
+    .port-card.selected {
+        border: 2px solid #667eea;
+        box-shadow: 0 0 16px rgba(102, 126, 234, 0.3);
+    }
+    
+    .batch-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #2a2a2a;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 1px solid #667eea;
+    }
+    
+    .selected-count {
+        color: #e0e0e0;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    
+    .btn-secondary {
+        background: #555555;
+        color: white;
+    }
+    
+    .btn-secondary:hover:not(:disabled) {
+        background: #666666;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(85, 85, 85, 0.4);
+    }
+    
+    .port-info {
+        margin-bottom: 16px;
+    }
+    
+    .port-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+        gap: 12px;
+    }
+    
+    .port-number {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+
+    .port-number .label {
+        font-size: 12px;
+        color: #a0a0a0;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    
+    .port-number .value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #667eea;
+    }
+    
+    .port-pid {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: #808080;
+        background: #2a2a2a;
+        padding: 6px 12px;
+        border-radius: 6px;
+        min-width: 80px;
+        justify-content: flex-end;
+    }
+    
+    .port-pid .icon {
+        font-size: 14px;
+    }
+    
+    .port-pid .text {
+        font-weight: 500;
+    }
+    
+    .port-details {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .detail-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    
+    .detail {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #b0b0b0;
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .detail .icon {
+        font-size: 14px;
+        flex-shrink: 0;
+        min-width: 16px;
+    }
+    
+    .detail .text {
+        color: #e0e0e0;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .detail-row:first-child {
+        justify-content: space-between;
+    }
+    
+    .detail-row:first-child .detail {
+        flex: 1;
+    }
+    
+    .detail-row:last-child {
+        justify-content: space-between;
+    }
+    
+    .detail-row:last-child .detail {
+        flex: 1;
+    }
+    
+    .port-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+    
+    .btn-icon {
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 8px;
+        font-size: 18px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #3a3a3a;
+        color: #b0b0b0;
+    }
+    
+    .btn-icon:hover {
+        transform: scale(1.1);
+    }
+    
+    .btn-icon.favorite {
+        background: #f39c12;
+        color: white;
+    }
+    
+    .btn-icon.watched {
+        background: #3498db;
+        color: white;
+    }
+    
+    .btn-icon.btn-tunnel {
+        background: transparent;
+        color: #9b59b6;
+        border: 1px solid #9b59b6;
+    }
+
+    .btn-icon.btn-tunnel:hover {
+        background: #9b59b6;
+        color: white;
+    }
+
+    .btn-icon.btn-tunnel.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+        box-shadow: 0 0 8px rgba(102, 126, 234, 0.6);
+        animation: pulse 2s infinite;
+    }
+    
+    .btn-icon.btn-info {
+        background: #1abc9c;
+        color: white;
+    }
+    
+    .btn-icon.btn-info:hover {
+        background: #16a085;
+    }
+    
+    .btn-icon.btn-danger {
+        background: #e74c3c;
+        color: white;
+    }
+
+    .system-service-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 4px;
+        font-size: 12px;
+        cursor: help;
+    }
+
+    .protocol-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .port-number .protocol-badge {
+        margin-left: 6px;
+        font-size: 10px;
+        padding: 1px 4px;
+    }
+
+    .protocol-badge.tcp {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+
+    .protocol-badge.udp {
+        background: rgba(255, 152, 0, 0.2);
+        color: #ff9800;
+    }
+
+    /* 出入站箭头样式 */
+    .access-arrow {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 6px;
+        font-size: 14px;
+        font-weight: bold;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+    }
+
+    .access-arrow.bidirectional {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+
+    .access-arrow.inbound {
+        background: rgba(33, 150, 243, 0.2);
+        color: #2196f3;
+    }
+
+    .access-arrow.outbound {
+        background: rgba(255, 152, 0, 0.2);
+        color: #ff9800;
+    }
+
+    .access-arrow.blocked {
+        background: rgba(244, 67, 54, 0.2);
+        color: #f44336;
+    }
+
+    .access-arrow.unknown {
+        background: rgba(158, 158, 158, 0.2);
+        color: #9e9e9e;
+    }
+
+    /* 脉冲动画点 */
+    .pulse-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #4caf50;
+        margin-right: 6px;
+        animation: pulse-dot-animation 1.5s ease-in-out infinite;
+    }
+
+    @@keyframes pulse-dot-animation {
+        0% {
+            transform: scale(0.8);
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+        }
+        70% {
+            transform: scale(1);
+            opacity: 0.7;
+            box-shadow: 0 0 0 6px rgba(76, 175, 80, 0);
+        }
+        100% {
+            transform: scale(0.8);
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+        }
+    }
+
+    /* 自动刷新徽章 */
+    .status-badge.auto-refresh-badge {
+        background: rgba(76, 175, 80, 0.15);
+        color: #4caf50;
+        border: 1px solid rgba(76, 175, 80, 0.3);
+    }
+
+    /* 端口状态指示器 */
+    .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+        flex-shrink: 0;
+    }
+
+    .status-dot.occupied {
+        background: #f44336;
+        box-shadow: 0 0 4px rgba(244, 67, 54, 0.5);
+    }
+
+    .status-dot.available {
+        background: #4caf50;
+        box-shadow: 0 0 4px rgba(76, 175, 80, 0.5);
+    }
+
+    .status-dot.protected {
+        background: #ff9800;
+        box-shadow: 0 0 4px rgba(255, 152, 0, 0.5);
+    }
+
+    /* 受保护标识 */
+    .protected-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 4px;
+        font-size: 12px;
+        cursor: help;
+    }
+
+    /* 导出按钮组 */
+    .export-group {
+        display: flex;
+        gap: 8px;
+    }
+
+    .access-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .access-badge.bidirectional {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+
+    .access-badge.inbound {
+        background: rgba(33, 150, 243, 0.2);
+        color: #2196f3;
+    }
+
+    .access-badge.outbound {
+        background: rgba(255, 152, 0, 0.2);
+        color: #ff9800;
+    }
+
+    .access-badge.blocked {
+        background: rgba(244, 67, 54, 0.2);
+        color: #f44336;
+    }
+
+    .access-badge.unknown {
+        background: rgba(158, 158, 158, 0.2);
+        color: #9e9e9e;
+    }
+
+    .protocol-badge.both {
+        background: linear-gradient(135deg, rgba(76, 175, 80, 0.2) 0%, rgba(255, 152, 0, 0.2) 100%);
+        color: #2196f3;
+        font-size: 9px;
+        padding: 1px 3px;
+    }
+
+    .tunnel-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 4px;
+        font-size: 12px;
+        cursor: help;
+        animation: pulse 2s infinite;
+    }
+
+    .tunnel-badge-small {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 4px;
+        font-size: 10px;
+        cursor: help;
+    }
+
+    .port-card.has-tunnel {
+        border: 2px solid #667eea;
+        box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+    }
+
+    .port-table tr.has-tunnel {
+        background: rgba(102, 126, 234, 0.1);
+    }
+
+    .port-table tr.has-tunnel:hover {
+        background: rgba(102, 126, 234, 0.2);
+    }
+
+    .description-cell {
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .description-text {
+        font-size: 12px;
+        color: #aaa;
+    }
+
+    .description-text.text-muted {
+        color: #666;
+    }
+    
+    .btn-icon.btn-danger:hover {
+        background: #c0392b;
+    }
+    
+    .port-table-container {
+        background: #2a2a2a;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #353535;
+    }
+
+    .port-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .port-table thead {
+        background: #252525;
+    }
+
+    .port-table thead th {
+        color: #a0a0a0;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid #353535;
+    }
+
+    .port-table tbody tr {
+        border-bottom: 1px solid #353535;
+        transition: all 0.3s ease;
+    }
+
+    .port-table tbody tr:hover {
+        background: #333333;
+        transform: translateY(-1px);
+    }
+
+    .port-table tbody td {
+        color: #e0e0e0;
+        font-size: 14px;
+        padding: 12px 16px;
+        vertical-align: middle;
+        border-right: 1px solid #353535;
+    }
+
+    .port-table tbody td:last-child {
+        border-right: none;
+    }
+
+    .port-table .v-data-table__wrapper {
+        background: #2a2a2a;
+    }
+
+    .port-table .v-data-table-header {
+        background: #252525;
+    }
+
+    .port-table .v-data-table-header th {
+        color: #a0a0a0;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .port-table .v-data-table__tbody tr {
+        border-bottom: 1px solid #353535;
+        transition: all 0.3s ease;
+    }
+
+    .port-table .v-data-table__tbody tr:hover {
+        background: #333333;
+        transform: translateY(-1px);
+    }
+
+    .port-table .v-data-table__tbody td {
+        color: #e0e0e0;
+        font-size: 14px;
+        padding: 12px 16px;
+        vertical-align: middle;
+        border-right: 1px solid #353535;
+    }
+
+    .port-table .v-data-table__tbody td:last-child {
+        border-right: none;
+    }
+
+    .port-table .v-data-table__tbody td div {
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+    }
+    
+    .port-table .v-data-table__tbody td div:hover {
+        background: rgba(102, 126, 234, 0.1);
+        color: #667eea;
+        transform: translateX(2px);
+    }
+    
+    .table-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        justify-content: center;
+        padding: 4px;
+    }
+    
+    .table-actions .btn-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .table-actions .btn-icon:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    .table-actions .btn-icon.favorite {
+        color: #f1c40f;
+    }
+    
+    .table-actions .btn-icon.watched {
+        color: #3498db;
+        background: rgba(52, 152, 219, 0.2);
+    }
+    
+    .table-actions .btn-icon.btn-tunnel:hover {
+        background: rgba(46, 204, 113, 0.2);
+        color: #2ecc71;
+    }
+    
+    .table-actions .btn-icon.btn-info:hover {
+        background: rgba(52, 152, 219, 0.2);
+        color: #3498db;
+    }
+    
+    .table-actions .btn-icon.btn-danger:hover {
+        background: rgba(231, 76, 60, 0.2);
+        color: #e74c3c;
+    }
+    
+    .table-actions .btn-icon.watched:hover {
+        background: rgba(52, 152, 219, 0.3);
+        color: #2980b9;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+    }
+    
+    .port-table .v-data-table__header {
+        background: #2a2a2a !important;
+        border-bottom: 2px solid #667eea !important;
+    }
+    
+    .port-table .v-data-table__header th {
+        color: #e0e0e0 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        padding: 14px 16px !important;
+        border-right: 1px solid #353535 !important;
+    }
+    
+    .port-table .v-data-table__header th:last-child {
+        border-right: none !important;
+    }
+    
+    .port-table-container {
+        background: #252525;
+        border-radius: 12px;
+        border: 1px solid #353535;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .port-table {
+        border-radius: 12px !important;
+        overflow: hidden !important;
+    }
+    
+    .port-table .v-data-table__footer {
+        background: #2a2a2a !important;
+        border-top: 1px solid #353535 !important;
+        display: flex !important;
+        padding: 12px 16px !important;
+    }
+    
+    .port-table .v-data-table__footer * {
+        color: #e0e0e0 !important;
+    }
+    
+    .port-table .v-data-table__footer .v-pagination button {
+        color: #e0e0e0 !important;
+        background: #353535 !important;
+        border-radius: 6px !important;
+        margin: 0 4px !important;
+    }
+    
+    .port-table .v-data-table__footer .v-pagination button:hover {
+        background: #667eea !important;
+    }
+    
+    .port-table .v-data-table__footer .v-pagination button.v-pagination__item--active {
+        background: #667eea !important;
+        color: #ffffff !important;
+    }
+    
+    .search-box {
+        position: relative;
+        flex: 1;
+        min-width: 250px;
+    }
+    
+    .search-box input {
+        width: 100%;
+        padding: 12px 48px 12px 16px;
+        border: 1px solid #353535;
+        border-radius: 8px;
+        background: #1e1e1e;
+        color: #e0e0e0;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    
+    .search-box input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .search-box input::placeholder {
+        color: #606060;
+    }
+    
+    .search-icon {
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 18px;
+        color: #a0a0a0;
+        pointer-events: none;
+    }
+
+    .port-range-filter {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        background: #1e1e1e;
+        border: 1px solid #353535;
+        border-radius: 8px;
+    }
+
+    .port-range-filter .range-label {
+        font-size: 13px;
+        color: #a0a0a0;
+        white-space: nowrap;
+    }
+
+    .port-range-filter input {
+        width: 70px;
+        padding: 8px 10px;
+        border: 1px solid #353535;
+        border-radius: 4px;
+        background: #2a2a2a;
+        color: #e0e0e0;
+        font-size: 13px;
+        text-align: center;
+    }
+
+    .port-range-filter input:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+
+    .port-range-filter .range-separator {
+        color: #606060;
+        font-size: 14px;
+    }
+
+    .port-range-filter .clear-range-btn {
+        background: none;
+        border: none;
+        color: #a0a0a0;
+        font-size: 12px;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+
+    .port-range-filter .clear-range-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #e0e0e0;
+    }
+
+    .export-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        border: none;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .export-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .export-btn .icon {
+        font-size: 16px;
+    }
+
+    .stats-panel {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        padding: 16px 20px;
+        margin: 16px 0;
+        background: #1e1e1e;
+        border: 1px solid #353535;
+        border-radius: 12px;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        text-align: center;
+        min-width: 60px;
+    }
+
+    .stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: #e0e0e0;
+        line-height: 1.2;
+    }
+
+    .stat-value.tcp {
+        color: #4caf50;
+    }
+
+    .stat-value.udp {
+        color: #ff9800;
+    }
+
+    .stat-value.system {
+        color: #9c27b0;
+    }
+
+    .stat-value.favorite {
+        color: #ffd700;
+    }
+
+    .stat-value.both {
+        color: #2196f3;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: #888;
+        margin-top: 4px;
+    }
+
+    .stat-bar-container {
+        flex: 1;
+        min-width: 200px;
+        max-width: 400px;
+    }
+
+    .stat-bar-label {
+        font-size: 12px;
+        color: #888;
+        margin-bottom: 8px;
+    }
+
+    .stat-bar {
+        display: flex;
+        height: 12px;
+        border-radius: 6px;
+        overflow: hidden;
+        background: #2a2a2a;
+    }
+
+    .stat-bar-segment {
+        height: 100%;
+        transition: width 0.5s ease;
+    }
+
+    .stat-bar-segment.tcp {
+        background: linear-gradient(90deg, #4caf50, #66bb6a);
+    }
+
+    .stat-bar-segment.udp {
+        background: linear-gradient(90deg, #ff9800, #ffb74d);
+    }
+
+    .stat-bar-segment.both {
+        background: linear-gradient(90deg, #2196f3, #42a5f5);
+    }
+
+    .stat-bar-legend {
+        display: flex;
+        gap: 16px;
+        margin-top: 8px;
+        font-size: 12px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .legend-item::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+    }
+
+    .legend-item.tcp::before {
+        background: #4caf50;
+    }
+
+    .legend-item.udp::before {
+        background: #ff9800;
+    }
+
+    .legend-item.both::before {
+        background: #2196f3;
+    }
+
+    .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        min-width: 300px;
+        max-width: 400px;
+        padding: 16px 20px;
+        border-radius: 8px;
+        background: #2a2a2a;
+        border: 1px solid #353535;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+    }
+    
+    @@keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    .notification.success {
+        border-left: 4px solid #2ecc71;
+    }
+    
+    .notification.error {
+        border-left: 4px solid #e74c3c;
+    }
+    
+    .notification.warning {
+        border-left: 4px solid #f39c12;
+    }
+    
+    .notification.info {
+        border-left: 4px solid #3498db;
+    }
+    
+    .notification-icon {
+        font-size: 20px;
+        font-weight: bold;
+    }
+    
+    .notification.success .notification-icon {
+        color: #2ecc71;
+    }
+    
+    .notification.error .notification-icon {
+        color: #e74c3c;
+    }
+    
+    .notification.warning .notification-icon {
+        color: #f39c12;
+    }
+    
+    .notification.info .notification-icon {
+        color: #3498db;
+    }
+    
+    .notification-message {
+        font-size: 14px;
+        color: #e0e0e0;
+    }
+    
+    .notification-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        color: #a0a0a0;
+        padding: 4px;
+        margin-left: auto;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .notification-close:hover {
+        background: #3a3a3a;
+        color: #e0e0e0;
+    }
+    
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        will-change: opacity;
+    }
+
+    .modal-content {
+        background: #2a2a2a !important;
+        border-radius: 12px !important;
+        width: 400px !important;
+        max-width: 400px !important;
+        max-height: 80vh !important;
+        overflow: hidden !important;
+        will-change: transform;
+        transform: translateZ(0);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+        animation: slideUp 0.3s ease !important;
+    }
+    
+    @@keyframes slideUp {
+        from {
+            transform: translateY(50px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+    
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid #353535;
+    }
+    
+    .modal-header h2 {
+        margin: 0;
+        font-size: 20px;
+        color: #e0e0e0;
+    }
+    
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        color: #a0a0a0;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .modal-close:hover {
+        background: #3a3a3a;
+        color: #e0e0e0;
+    }
+    
+    .modal-body {
+        padding: 20px;
+        overflow-y: auto;
+        max-height: calc(80vh - 120px);
+    }
+    
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid #353535;
+    }
+    
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+    
+    .detail-label {
+        font-size: 14px;
+        color: #a0a0a0;
+        font-weight: 500;
+    }
+    
+    .detail-value {
+        font-size: 14px;
+        color: #e0e0e0;
+        font-weight: 600;
+    }
+    
+    .detail-value-full {
+        word-break: break-all;
+        max-width: 300px;
+        text-align: right;
+    }
+    
+    .detail-value.status-active {
+        color: #2ecc71;
+    }
+    
+    .detail-value.status-inactive {
+        color: #e74c3c;
+    }
+
+    .detail-value.status-killable {
+        color: #2ecc71;
+        font-weight: 600;
+    }
+
+    .detail-value.status-protected {
+        color: #ff9800;
+        font-weight: 600;
+    }
+
+    /* CPU 使用率样式 */
+    .detail-value.cpu-high {
+        color: #f44336;
+        font-weight: 600;
+    }
+
+    .detail-value.cpu-medium {
+        color: #ff9800;
+        font-weight: 600;
+    }
+
+    .detail-value.cpu-low {
+        color: #2ecc71;
+    }
+
+    /* 进程状态样式 */
+    .detail-value.status-running {
+        color: #2ecc71;
+        font-weight: 600;
+    }
+
+    .detail-value.status-not-responding {
+        color: #f44336;
+        font-weight: 600;
+    }
+
+    .detail-value.status-exited {
+        color: #9e9e9e;
+    }
+
+    .detail-value.status-unknown {
+        color: #9e9e9e;
+    }
+
+    /* 进程详情弹窗样式 - 紧凑布局 */
+    .port-details-modal {
+        max-width: 380px;
+    }
+
+    .port-details-modal .modal-header {
+        padding: 12px 16px;
+    }
+
+    .port-details-modal .modal-header h2 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 16px;
+    }
+
+    .port-details-modal .modal-body {
+        padding: 12px 16px;
+        max-height: calc(90vh - 140px);
+    }
+
+    .detail-section {
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #353535;
+    }
+
+    .detail-section:last-of-type {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .port-details-modal .detail-row {
+        padding: 6px 0;
+    }
+
+    .port-details-modal .detail-label {
+        font-size: 13px;
+    }
+
+    .port-details-modal .detail-value {
+        font-size: 13px;
+    }
+
+    .path-box {
+        background: #2a2a2a;
+        border: 1px solid #353535;
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #a0a0a0;
+        word-break: break-all;
+        margin-top: 6px;
+        font-family: 'Consolas', 'Monaco', monospace;
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 8px;
+        padding: 0 16px 10px;
+        border-bottom: 1px solid #353535;
+    }
+
+    .action-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px 12px;
+        background: linear-gradient(135deg, #3a3a3a 0%, #2d2d2d 100%);
+        border: 1px solid #404040;
+        border-radius: 6px;
+        color: #e0e0e0;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .action-btn:hover {
+        background: linear-gradient(135deg, #404040 0%, #333333 100%);
+        border-color: #667eea;
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(102, 126, 234, 0.2);
+    }
+
+    .action-btn .icon {
+        font-size: 12px;
+    }
+
+    .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        filter: grayscale(0.5);
+    }
+
+    .modal-footer {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        padding: 12px 16px;
+        border-top: 1px solid #353535;
+    }
+
+    .port-details-modal .modal-footer {
+        padding: 10px 16px;
+    }
+
+    .port-details-modal .modal-footer .btn {
+        padding: 8px 14px;
+        font-size: 12px;
+        font-weight: 600;
+        border: none;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+    }
+
+    /* 创建隧道按钮 - 蓝紫渐变 */
+    .port-details-modal .modal-footer .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    .port-details-modal .modal-footer .btn-primary:hover:not(:disabled) {
+        background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        transform: translateY(-1px);
+    }
+
+    /* 终止进程按钮 - 红色渐变 */
+    .port-details-modal .modal-footer .btn-danger {
+        background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+    }
+
+    .port-details-modal .modal-footer .btn-danger:hover:not(:disabled) {
+        background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+        box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+        transform: translateY(-1px);
+    }
+    
+    .container.light .btn {
+        background: #667eea;
+        color: white;
+    }
+    
+    .container.light .btn:hover:not(:disabled) {
+        background: #764ba2;
+    }
+    
+    .container.light .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+    
+    .container.light .btn-secondary:hover:not(:disabled) {
+        background: #5a6268;
+    }
+    
+    .container.light .btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .container.light .btn-danger:hover:not(:disabled) {
+        background: #c82333;
+    }
+    
+    .container.light .btn:disabled {
+        background: #6c757d;
+        color: white;
+        opacity: 0.6;
+    }
+    
+    .container.light .search-box input {
+        background: #ffffff;
+        border: 1px solid #ced4da;
+        color: #495057;
+    }
+
+    .container.light .search-box input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .container.light .search-box input::placeholder {
+        color: #6c757d;
+    }
+
+    .container.light .search-icon {
+        color: #6c757d;
+    }
+
+    .container.light .port-range-filter {
+        background: #ffffff;
+        border: 1px solid #ced4da;
+    }
+
+    .container.light .port-range-filter .range-label {
+        color: #6c757d;
+    }
+
+    .container.light .port-range-filter input {
+        background: #f8f9fa;
+        border: 1px solid #ced4da;
+        color: #495057;
+    }
+
+    .container.light .port-range-filter .range-separator {
+        color: #6c757d;
+    }
+
+    .container.light .port-range-filter .clear-range-btn {
+        color: #6c757d;
+    }
+
+    .container.light .port-range-filter .clear-range-btn:hover {
+        background: #e9ecef;
+        color: #495057;
+    }
+    
+    .container.light .filter-btn {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+        color: #495057;
+    }
+    
+    .container.light .filter-btn.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+    
+    .container.light .filter-btn:hover {
+        background: #e9ecef;
+        border-color: #dee2e6;
+    }
+    
+    .container.light .view-toggle-btn {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+        color: #495057;
+    }
+    
+    .container.light .view-toggle-btn.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+    
+    .container.light .view-toggle-btn:hover {
+        background: #e9ecef;
+        border-color: #dee2e6;
+    }
+
+    .container.light .port-count-badge {
+        background: linear-gradient(135deg, #1976d2, #2196f3);
+        box-shadow: 0 2px 8px rgba(25, 118, 210, 0.2);
+    }
+
+    .container.light .refresh-counter-badge {
+        background: linear-gradient(135deg, #4caf50, #66bb6a);
+        box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
+    }
+
+    .container.light .last-refresh-badge {
+        background: linear-gradient(135deg, #546e7a, #78909c);
+        box-shadow: 0 2px 8px rgba(84, 110, 122, 0.2);
+    }
+
+    .container.light .refresh-duration-badge {
+        background: linear-gradient(135deg, #f57c00, #ff9800);
+        box-shadow: 0 2px 8px rgba(245, 124, 0, 0.2);
+    }
+
+    .container.light .status-group {
+        background: #f5f5f5;
+        border: 1px solid #e0e0e0;
+    }
+
+    .container.light .status-badge.port-badge {
+        background: linear-gradient(135deg, #1565c0, #1976d2);
+    }
+
+    .container.light .status-badge.time-badge {
+        background: linear-gradient(135deg, #455a64, #546e7a);
+    }
+
+    .container.light .status-badge.duration-badge {
+        background: linear-gradient(135deg, #ef6c00, #f57c00);
+    }
+
+    .container.light .status-badge.duration-badge.active {
+        background: linear-gradient(135deg, #e65100, #ef6c00);
+        box-shadow: 0 0 10px rgba(239, 108, 0, 0.5);
+    }
+
+    .container.light .status-badge.refresh-badge {
+        background: linear-gradient(135deg, #388e3c, #4caf50);
+    }
+
+    .container.light .batch-actions-group {
+        background: #f5f5f5;
+        border: 1px solid #e0e0e0;
+    }
+
+    .container.light .port-card {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+    }
+    
+    .container.light .port-card:hover {
+        border: 1px solid #42a5f5 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+        background: linear-gradient(145deg, #ffffff, #f5f5f5) !important;
+    }
+    
+    .container.light .port-card.active {
+        border-left: 4px solid #28a745;
+    }
+    
+    .container.light .port-card.selected {
+        border: 2px solid #667eea;
+        box-shadow: 0 0 16px rgba(102, 126, 234, 0.3);
+    }
+
+    .container.light .port-card.has-tunnel {
+        border: 2px solid #667eea;
+        box-shadow: 0 0 10px rgba(102, 126, 234, 0.2);
+    }
+
+    .container.light .port-table tr.has-tunnel {
+        background: rgba(102, 126, 234, 0.05);
+    }
+
+    .container.light .port-table tr.has-tunnel:hover {
+        background: rgba(102, 126, 234, 0.1);
+    }
+
+    .container.light .port-number .label {
+        color: #6c757d;
+    }
+    
+    .container.light .port-number .value {
+        color: #667eea;
+    }
+    
+    .container.light .port-pid {
+        background: #f8f9fa;
+        color: #495057;
+    }
+    
+    .container.light .detail {
+        color: #6c757d;
+    }
+    
+    .container.light .detail .text {
+        color: #495057;
+    }
+    
+    .container.light .btn-icon {
+        background: #f8f9fa;
+        color: #495057;
+    }
+    
+    .container.light .btn-icon:hover {
+        background: #e9ecef;
+    }
+    
+    .container.light .btn-icon.favorite {
+        background: #ffc107;
+        color: white;
+    }
+    
+    .container.light .btn-icon.watched {
+        background: #17a2b8;
+        color: white;
+    }
+    
+    .container.light .btn-icon.btn-tunnel {
+        background: transparent;
+        color: #6f42c1;
+        border: 1px solid #6f42c1;
+    }
+
+    .container.light .btn-icon.btn-tunnel:hover {
+        background: #6f42c1;
+        color: white;
+    }
+
+    .container.light .btn-icon.btn-tunnel.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+        box-shadow: 0 0 8px rgba(102, 126, 234, 0.6);
+    }
+
+    .container.light .btn-icon.btn-info {
+        background: #17a2b8;
+        color: white;
+    }
+    
+    .container.light .btn-icon.btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .container.light .stats-panel {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+    }
+
+    .container.light .stat-value {
+        color: #212529;
+    }
+
+    .container.light .stat-label {
+        color: #6c757d;
+    }
+
+    .container.light .stat-bar {
+        background: #e9ecef;
+    }
+
+    .container.light .stat-bar-label {
+        color: #6c757d;
+    }
+
+    .container.light .port-table-container {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+    }
+    
+    .container.light .port-table {
+        background: #ffffff;
+    }
+
+    .container.light .port-table thead {
+        background: #f8f9fa;
+    }
+
+    .container.light .port-table thead th {
+        color: #495057;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .container.light .port-table tbody tr {
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .container.light .port-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+
+    .container.light .port-table tbody td {
+        color: #495057;
+        border-right: 1px solid #dee2e6;
+    }
+
+    .container.light .port-table .v-data-table__wrapper {
+        background: #ffffff;
+    }
+
+    .container.light .port-table .v-data-table-header {
+        background: #f8f9fa;
+    }
+
+    .container.light .port-table .v-data-table-header th {
+        color: #495057;
+    }
+
+    .container.light .port-table .v-data-table__tbody tr {
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .container.light .port-table .v-data-table__tbody tr:hover {
+        background: #f8f9fa;
+    }
+
+    .container.light .port-table .v-data-table__tbody td {
+        color: #495057;
+        border-right: 1px solid #dee2e6;
+    }
+    
+    .container.light .port-table .v-data-table__tbody td div:hover {
+        background: rgba(102, 126, 234, 0.1);
+        color: #667eea;
+    }
+    
+    .container.light .table-actions .btn-icon {
+        background: #f8f9fa;
+        color: #495057;
+    }
+    
+    .container.light .table-actions .btn-icon.favorite {
+        color: #ffc107;
+    }
+    
+    .container.light .table-actions .btn-icon.watched {
+        color: #17a2b8;
+        background: rgba(23, 162, 184, 0.2);
+    }
+    
+    .container.light .table-actions .btn-icon.btn-tunnel:hover {
+        background: rgba(40, 167, 69, 0.2);
+        color: #28a745;
+    }
+    
+    .container.light .table-actions .btn-icon.btn-info:hover {
+        background: rgba(23, 162, 184, 0.2);
+        color: #17a2b8;
+    }
+    
+    .container.light .table-actions .btn-icon.btn-danger:hover {
+        background: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+    }
+    
+    .container.light .table-actions .btn-icon.watched:hover {
+        background: rgba(23, 162, 184, 0.3);
+        color: #138496;
+    }
+    
+    .container.light .port-table .v-data-table__header {
+        background: #f8f9fa !important;
+        border-bottom: 2px solid #667eea !important;
+    }
+    
+    .container.light .port-table .v-data-table__header th {
+        color: #495057 !important;
+        border-right: 1px solid #dee2e6 !important;
+    }
+    
+    .container.light .port-table-container {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+    }
+    
+    .container.light .port-table .v-data-table__footer {
+        background: #f8f9fa !important;
+        border-top: 1px solid #dee2e6 !important;
+    }
+    
+    .container.light .port-table .v-data-table__footer * {
+        color: #495057 !important;
+    }
+    
+    .container.light .port-table .v-data-table__footer .v-pagination button {
+        color: #495057 !important;
+        background: #ffffff !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    .container.light .port-table .v-data-table__footer .v-pagination button:hover {
+        background: #667eea !important;
+        color: white !important;
+    }
+    
+    .container.light .port-table .v-data-table__footer .v-pagination button.v-pagination__item--active {
+        background: #667eea !important;
+        color: white !important;
+    }
+
+    .container.light .description-text {
+        color: #666;
+    }
+
+    .container.light .description-text.text-muted {
+        color: #999;
+    }
+
+    .container.light .protocol-badge.tcp {
+        background: rgba(76, 175, 80, 0.15);
+        color: #2e7d32;
+    }
+
+    .container.light .protocol-badge.udp {
+        background: rgba(255, 152, 0, 0.15);
+        color: #ef6c00;
+    }
+    
+    .container.light .notification {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .container.light .notification-message {
+        color: #495057;
+    }
+    
+    .container.light .notification-close {
+        color: #6c757d;
+    }
+    
+    .container.light .notification-close:hover {
+        background: #f8f9fa;
+        color: #495057;
+    }
+    
+    .container.light .modal-overlay {
+        background: rgba(0, 0, 0, 0.5);
+    }
+    
+    .container.light .modal-content {
+        background: #ffffff !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+    }
+    
+    .container.light .modal-header h2 {
+        color: #495057;
+    }
+    
+    .container.light .modal-header .modal-close {
+        color: #6c757d;
+    }
+    
+    .container.light .modal-header .modal-close:hover {
+        color: #495057;
+    }
+    
+    .container.light .modal-body .detail-label {
+        color: #6c757d;
+    }
+    
+    .container.light .modal-body .detail-value {
+        color: #495057;
+    }
+    
+    .container.light .modal-body .status-active {
+        color: #28a745;
+    }
+    
+    .container.light .modal-body .status-inactive {
+        color: #6c757d;
+    }
+    
+    .container.light .modal-footer {
+        border-top: 1px solid #dee2e6;
+    }
+    
+    .container.light .empty {
+        color: #6c757d;
+    }
+    
+    .container.light .empty h2 {
+        color: #495057;
+    }
+    
+    .container.light .empty p {
+        color: #6c757d;
+    }
+    
+    .container.light .batch-actions {
+        background: #ffffff;
+        border: 1px solid #667eea;
+    }
+    
+    .container.light .selected-count {
+        color: #495057;
+    }
+    
+    .container.light .notification-history-modal {
+        background: #ffffff !important;
+    }
+    
+    .container.light .empty-history {
+        color: #6c757d;
+    }
+    
+    .container.light .notification-history-item {
+        border: 1px solid #dee2e6;
+        background: #ffffff;
+    }
+    
+    .container.light .notification-history-item:hover {
+        background: #f8f9fa;
+        border-color: #dee2e6;
+    }
+    
+    .notification-history-modal {
+        width: 600px !important;
+        max-width: 600px !important;
+        max-height: 70vh !important;
+    }
+    
+    .empty-history {
+        text-align: center;
+        padding: 40px 20px;
+        color: #808080;
+    }
+    
+    .empty-history .empty-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+        opacity: 0.5;
+    }
+    
+    .notification-history-list {
+        max-height: 400px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .notification-history-item {
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #353535;
+        background: #252525;
+        transition: all 0.2s ease;
+    }
+    
+    .notification-history-item:hover {
+        background: #2a2a2a;
+        border-color: #454545;
+    }
+    
+    .notification-history-item.success {
+        border-left: 3px solid #2ecc71;
+    }
+    
+    .notification-history-item.error {
+        border-left: 3px solid #e74c3c;
+    }
+    
+    .notification-history-item.warning {
+        border-left: 3px solid #f39c12;
+    }
+    
+    .notification-history-item.info {
+        border-left: 3px solid #3498db;
+    }
+    
+    .notification-history-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+    }
+    
+    .notification-history-icon {
+        font-size: 18px;
+    }
+    
+    .notification-history-message {
+        flex: 1;
+        font-size: 14px;
+        font-weight: 500;
+        color: #e0e0e0;
+    }
+    
+    .notification-history-time {
+        font-size: 12px;
+        color: #808080;
+    }
+    
+    .notification-history-details {
+        font-size: 13px;
+        color: #a0a0a0;
+        padding-left: 26px;
+        word-break: break-all;
+    }
+</style>
+
+@code {
+    private List<PortInfo> _ports = new();
+    private List<PortInfo> _filteredPorts = new();
+    private bool _isLoading = false;
+    private bool _isRefreshing = false;
+    private string _searchText = string.Empty;
+    private PortInfo? _selectedPort;
+    private bool _showPortDetailsModal = false;
+    private bool _showFavoritesOnly = false;
+    private bool _showWatchedOnly = false;
+    private bool _showSystemServicesOnly = false;
+    private bool _showTcpOnly = false;
+    private bool _showUdpOnly = false;
+    private int? _portRangeStart = null;
+    private int? _portRangeEnd = null;
+    private bool _showNotification = false;
+    private string _notificationMessage = string.Empty;
+    private string _notificationType = string.Empty;
+    private string _notificationIcon = string.Empty;
+    private bool _isTableView = false;
+    private bool IsLightTheme => ThemeService.CurrentTheme == "light";
+    private string _sortBy = nameof(PortInfo.Port);
+    private bool _sortDesc = false;
+    private HashSet<int> _selectedPorts = new();
+    private bool _showNotificationHistoryModal = false;
+    private List<Notification> _notificationHistory = new();
+    private System.Timers.Timer? _autoRefreshTimer;
+    private System.Timers.Timer? _refreshProgressTimer;
+    private DateTime _currentRefreshStartTime;
+    private bool _autoRefreshEnabled = true;
+    private int _refreshInterval = 30; // 秒，根据实际扫描时间调整
+    private int _refreshCount = 0;
+    private DateTime _lastRefreshTime = DateTime.MinValue;
+    private TimeSpan _lastRefreshDuration = TimeSpan.Zero;
+    private readonly TimeSpan _minRefreshInterval = TimeSpan.FromSeconds(10); // 最小刷新间隔，避免刷新过于频繁
+    private bool _isDisposed = false; // 防止在 Dispose 后继续执行
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPortsFromCacheAsync();
+        _notificationHistory = NotificationService.GetNotificationHistory();
+        StartAutoRefresh();
+
+        // 订阅主题变更事件
+        ThemeService.OnThemeChanged += OnThemeChanged;
+
+        // 订阅防火墙规则缓存刷新事件
+        FirewallService.CacheRefreshed += OnFirewallCacheRefreshed;
+    }
+
+    private async void OnFirewallCacheRefreshed(object? sender, EventArgs e)
+    {
+        await InvokeAsync(async () =>
+        {
+            XTrace.Log.Info("Firewall cache refreshed, updating port access directions...");
+            // 重新获取端口防火墙信息
+            await RefreshPortFirewallInfoAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task RefreshPortFirewallInfoAsync()
+    {
+        try
+        {
+            var ports = _ports.Select(p => p.Port).Distinct().ToList();
+            var firewallInfo = FirewallService.GetPortsFirewallInfo(ports);
+
+            foreach (var port in _ports)
+            {
+                if (firewallInfo.TryGetValue(port.Port, out var info))
+                {
+                    port.FirewallInfo = info;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            XTrace.WriteLine($"Error refreshing port firewall info: {ex.Message}");
+        }
+    }
+
+    private async void OnThemeChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            // 强制刷新 UI
+            StateHasChanged();
+        });
+    }
+
+    private void StartAutoRefresh()
+    {
+        if (_autoRefreshTimer != null) return;
+
+        _autoRefreshTimer = new System.Timers.Timer(_refreshInterval * 1000);
+        _autoRefreshTimer.Elapsed += async (sender, e) =>
+        {
+            // 检查页面是否已释放
+            if (_isDisposed)
+            {
+                XTrace.Log.Debug("Auto refresh skipped: page is disposed");
+                return;
+            }
+
+            if (_autoRefreshEnabled && !_isLoading)
+            {
+                // 检查距离上次刷新是否已经超过最小间隔
+                var timeSinceLastRefresh = DateTime.Now - _lastRefreshTime;
+                if (timeSinceLastRefresh < _minRefreshInterval)
+                {
+                    XTrace.Log.Debug($"Auto refresh skipped: last refresh was {timeSinceLastRefresh.TotalSeconds:F1}s ago");
+                    return;
+                }
+
+                await InvokeAsync(async () =>
+                {
+                    if (!_isDisposed)
+                    {
+                        await RefreshPortsWithoutLoading();
+                    }
+                });
+            }
+        };
+        _autoRefreshTimer.AutoReset = true;
+        _autoRefreshTimer.Start();
+    }
+
+    private void StopAutoRefresh()
+    {
+        _autoRefreshTimer?.Stop();
+        _autoRefreshTimer?.Dispose();
+        _autoRefreshTimer = null;
+    }
+
+    public void Dispose()
+    {
+        _isDisposed = true;
+
+        // 先停止所有定时器，防止新的刷新操作
+        StopAutoRefresh();
+        StopRefreshProgressTimer();
+        _notificationTimer?.Stop();
+        _notificationTimer?.Dispose();
+        _notificationTimer = null;
+
+        // 取消订阅主题变更事件
+        ThemeService.OnThemeChanged -= OnThemeChanged;
+
+        // 取消订阅防火墙规则缓存刷新事件
+        FirewallService.CacheRefreshed -= OnFirewallCacheRefreshed;
+
+        // 等待一小段时间，让正在进行的刷新操作完成
+        Task.Delay(100).Wait();
+
+        // 释放刷新锁
+        try
+        {
+            _refreshLock?.Dispose();
+        }
+        catch
+        {
+            // 忽略释放错误
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("eval", $"document.body.className = '{ThemeService.CurrentTheme}';");
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task LoadPortsFromCacheAsync()
+    {
+        try
+        {
+            _ports = PortScanner.GetPorts();
+
+            if (_ports.Count == 0)
+            {
+                await LoadPortsAsync();
+            }
+            else
+            {
+                // 从缓存加载也需要更新刷新时间
+                _lastRefreshTime = DateTime.Now;
+                _refreshCount++;
+                // 应用筛选
+                FilterPorts();
+                StateHasChanged();
+                
+                // 获取防火墙规则信息
+                await RefreshPortFirewallInfoAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error loading ports from cache: {ex.Message}");
+            await LoadPortsAsync();
+        }
+    }
+
+    private async Task LoadPortsAsync()
+    {
+        _isLoading = true;
+        var startTime = DateTime.Now;
+        _currentRefreshStartTime = startTime;
+        StateHasChanged();
+
+        // 启动实时刷新进度定时器
+        StartRefreshProgressTimer();
+
+        try
+        {
+            await Task.Delay(500);
+            await PortScanner.RefreshPortsAsync();
+            _ports = PortScanner.GetPorts();
+
+            // 更新刷新统计
+            _lastRefreshDuration = DateTime.Now - startTime;
+            _lastRefreshTime = DateTime.Now;
+            _refreshCount++;
+
+            // 应用筛选
+            FilterPorts();
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error loading ports: {ex.Message}");
+            ShowNotification("加载端口失败", "error");
+        }
+        finally
+        {
+            // 停止实时刷新进度定时器
+            StopRefreshProgressTimer();
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshPorts()
+    {
+        // 使用增量更新方式刷新，避免界面闪烁，显示刷新状态
+        await RefreshPortsWithoutLoading(showRefreshing: true);
+    }
+
+    private readonly SemaphoreSlim _refreshLock = new SemaphoreSlim(1, 1);
+
+    private async Task RefreshPortsWithoutLoading(bool showRefreshing = false)
+    {
+        // 检查页面是否已释放
+        if (_isDisposed)
+        {
+            XTrace.Log.Debug("Refresh skipped: page is disposed");
+            return;
+        }
+
+        // 手动刷新时等待锁（最多等待5秒），自动刷新时如果拿不到锁立即跳过
+        var lockTimeout = showRefreshing ? 5000 : 0;
+        if (!await _refreshLock.WaitAsync(lockTimeout))
+        {
+            XTrace.Log.Info("Refresh skipped: another refresh is in progress");
+            return;
+        }
+
+        var refreshStartTime = DateTime.Now;
+        _currentRefreshStartTime = refreshStartTime;
+
+        // 启动实时刷新进度定时器
+        StartRefreshProgressTimer();
+
+        try
+        {
+            // 检查页面是否已释放
+            if (_isDisposed)
+            {
+                XTrace.Log.Debug("Refresh skipped: page is disposed after acquiring lock");
+                return;
+            }
+
+            // 手动刷新时显示刷新状态，自动刷新时不显示
+            if (showRefreshing)
+            {
+                _isRefreshing = true;
+                StateHasChanged();
+            }
+
+            // 后台刷新，不显示加载状态
+            await PortScanner.RefreshPortsAsync();
+            var newPorts = PortScanner.GetPorts();
+
+            // 检查页面是否已释放
+            if (_isDisposed)
+            {
+                XTrace.Log.Debug("Refresh skipped: page is disposed during refresh");
+                return;
+            }
+
+            // 增量更新：保留现有端口对象的引用，只更新数据
+            UpdatePortsIncrementally(newPorts);
+
+            // 应用当前筛选
+            FilterPorts();
+
+            // 增加刷新计数
+            _refreshCount++;
+
+            // 记录刷新耗时
+            _lastRefreshDuration = DateTime.Now - refreshStartTime;
+            _lastRefreshTime = DateTime.Now;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error auto-refreshing ports: {ex.Message}");
+        }
+        finally
+        {
+            // 停止实时刷新进度定时器
+            StopRefreshProgressTimer();
+
+            if (showRefreshing && !_isDisposed)
+            {
+                _isRefreshing = false;
+                StateHasChanged();
+            }
+
+            // 安全释放锁
+            try
+            {
+                _refreshLock.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+                // 锁已被释放，忽略
+            }
+        }
+    }
+
+    private void StartRefreshProgressTimer()
+    {
+        StopRefreshProgressTimer();
+        _refreshProgressTimer = new System.Timers.Timer(100); // 每100ms更新一次
+        _refreshProgressTimer.Elapsed += (sender, e) =>
+        {
+            if (!_isDisposed)
+            {
+                InvokeAsync(() =>
+                {
+                    StateHasChanged();
+                });
+            }
+        };
+        _refreshProgressTimer.AutoReset = true;
+        _refreshProgressTimer.Start();
+    }
+
+    private void StopRefreshProgressTimer()
+    {
+        _refreshProgressTimer?.Stop();
+        _refreshProgressTimer?.Dispose();
+        _refreshProgressTimer = null;
+    }
+
+    private void UpdatePortsIncrementally(List<PortInfo> newPorts)
+    {
+        // 创建新端口的字典（使用端口+协议作为复合键）
+        var newPortsDict = newPorts.ToDictionary(p => (p.Port, p.Protocol));
+
+        // 跟踪新增和移除的端口用于通知
+        var addedPorts = new List<PortInfo>();
+        var removedPorts = new List<PortInfo>();
+
+        // 更新现有端口或添加新端口
+        foreach (var newPort in newPorts)
+        {
+            var existingPort = _ports.FirstOrDefault(p => p.Port == newPort.Port && p.Protocol == newPort.Protocol);
+            if (existingPort != null)
+            {
+                // 更新现有端口的属性，保留收藏和监控状态
+                existingPort.ProcessName = newPort.ProcessName;
+                existingPort.Pid = newPort.Pid;
+                existingPort.Address = newPort.Address;
+                existingPort.User = newPort.User;
+                existingPort.Command = newPort.Command;
+                existingPort.IsActive = newPort.IsActive;
+            }
+            else
+            {
+                // 添加新端口
+                _ports.Add(newPort);
+                addedPorts.Add(newPort);
+            }
+        }
+
+        // 移除不再存在的端口
+        var portsToRemove = _ports.Where(p => !newPortsDict.ContainsKey((p.Port, p.Protocol))).ToList();
+        foreach (var port in portsToRemove)
+        {
+            _ports.Remove(port);
+            _selectedPorts.Remove(port.Port);
+            removedPorts.Add(port);
+        }
+
+        // 发送端口变化通知
+        if (addedPorts.Count > 0)
+        {
+            var uniquePorts = addedPorts.GroupBy(p => p.Port).Select(g => g.Key).ToList();
+            var message = uniquePorts.Count == 1
+                ? $"端口 {uniquePorts[0]} 已启动 ({addedPorts.First().ProcessName})"
+                : $"发现 {uniquePorts.Count} 个新端口: {string.Join(", ", uniquePorts.Take(5))}" + (uniquePorts.Count > 5 ? "..." : "");
+            ShowNotification(message, "success");
+        }
+    }
+
+    private async Task KillPort(int port)
+    {
+        try
+        {
+            PortScanner.KillPort(port);
+            
+            // 增量更新：直接从列表中移除被终止的端口，不重新加载
+            var portToRemove = _ports.FirstOrDefault(p => p.Port == port);
+            if (portToRemove != null)
+            {
+                _ports.Remove(portToRemove);
+                _selectedPorts.Remove(port);
+            }
+            
+            // 同时更新筛选后的列表
+            var filteredPortToRemove = _filteredPorts.FirstOrDefault(p => p.Port == port);
+            if (filteredPortToRemove != null)
+            {
+                _filteredPorts.Remove(filteredPortToRemove);
+            }
+            
+            ShowNotification($"端口 {port} 已终止", "success");
+            StateHasChanged();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // 权限不足，给用户友好的提示
+            XTrace.Log.Warn($"Access denied when killing port {port}: {ex.Message}");
+            ShowNotification(ex.Message, "warning");
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error killing port: {ex.Message}");
+            ShowNotification($"终止端口失败: {ex.Message}", "error");
+        }
+    }
+
+    private void ToggleFavorite(int port)
+    {
+        PortScanner.ToggleFavorite(port);
+        var portInfo = _ports.FirstOrDefault(p => p.Port == port);
+        if (portInfo != null)
+        {
+            portInfo.IsFavorite = PortScanner.GetPorts().FirstOrDefault(p => p.Port == port)?.IsFavorite ?? false;
+        }
+        FilterPorts();
+    }
+
+    private void ToggleWatch(int port)
+    {
+        PortScanner.ToggleWatch(port);
+        var portInfo = _ports.FirstOrDefault(p => p.Port == port);
+        if (portInfo != null)
+        {
+            portInfo.IsWatched = PortScanner.GetPorts().FirstOrDefault(p => p.Port == port)?.IsWatched ?? false;
+        }
+        FilterPorts();
+    }
+
+    private void ToggleAutoRefresh()
+    {
+        _autoRefreshEnabled = !_autoRefreshEnabled;
+        if (_autoRefreshEnabled)
+        {
+            StartAutoRefresh();
+            ShowNotification("自动刷新已开启", "success");
+        }
+        else
+        {
+            StopAutoRefresh();
+            ShowNotification("自动刷新已暂停", "info");
+        }
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _searchText = e.Value?.ToString() ?? string.Empty;
+        FilterPorts();
+    }
+
+    private void OnPortRangeInput(ChangeEventArgs e)
+    {
+        FilterPorts();
+    }
+
+    private void ClearPortRange()
+    {
+        _portRangeStart = null;
+        _portRangeEnd = null;
+        FilterPorts();
+    }
+
+    private void ExportToCsv()
+    {
+        try
+        {
+            var csv = new StringBuilder();
+            csv.AppendLine("端口,协议,进程名,PID,地址,用户,说明,收藏,监控");
+
+            foreach (var port in _filteredPorts.OrderBy(p => p.Port))
+            {
+                var description = GetPortDescription(port.Port);
+                if (string.IsNullOrEmpty(description))
+                {
+                    description = IsSystemService(port.ProcessName) ? GetSystemServiceDescription(port.ProcessName) : "";
+                }
+                csv.AppendLine($"{port.Port},{port.Protocol},{EscapeCsvField(port.ProcessName)},{port.Pid},{port.Address},{EscapeCsvField(port.User)},{EscapeCsvField(description)},{(port.IsFavorite ? "是" : "否")},{(port.IsWatched ? "是" : "否")}");
+            }
+
+            var fileName = $"端口列表_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            var filePath = Path.Combine(Path.GetTempPath(), fileName);
+            File.WriteAllText(filePath, csv.ToString(), Encoding.UTF8);
+
+            // 使用默认程序打开CSV文件
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = filePath,
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+
+            ShowNotification($"已导出 {_filteredPorts.Count} 个端口到 {fileName}", "success");
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error exporting to CSV: {ex.Message}");
+            ShowNotification($"导出失败: {ex.Message}", "error");
+        }
+    }
+
+    private string EscapeCsvField(string field)
+    {
+        if (string.IsNullOrEmpty(field))
+            return "";
+        if (field.Contains(",") || field.Contains("\"") || field.Contains("\n"))
+        {
+            return "\"" + field.Replace("\"", "\"\"") + "\"";
+        }
+        return field;
+    }
+
+    private void ExportToJson()
+    {
+        try
+        {
+            var exportData = _filteredPorts.Select(port => new
+            {
+                port.Port,
+                port.Protocol,
+                port.ProcessName,
+                port.Pid,
+                port.Address,
+                port.User,
+                Command = port.Command,
+                Description = IsSystemService(port.ProcessName) ? GetSystemServiceDescription(port.ProcessName) : "",
+                port.IsFavorite,
+                port.IsWatched,
+                IsSystemService = IsSystemService(port.ProcessName)
+            }).ToList();
+
+            var json = System.Text.Json.JsonSerializer.Serialize(exportData, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            });
+
+            var fileName = $"端口列表_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+            var filePath = Path.Combine(Path.GetTempPath(), fileName);
+            File.WriteAllText(filePath, json, Encoding.UTF8);
+
+            // 使用默认程序打开JSON文件
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = filePath,
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+
+            ShowNotification($"已导出 {_filteredPorts.Count} 个端口到 {fileName}", "success");
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error exporting to JSON: {ex.Message}");
+            ShowNotification($"导出失败: {ex.Message}", "error");
+        }
+    }
+
+    private void FilterPorts()
+    {
+        _filteredPorts = _ports.ToList();
+
+        if (_showFavoritesOnly)
+        {
+            _filteredPorts = _filteredPorts.Where(p => p.IsFavorite).ToList();
+        }
+
+        if (_showWatchedOnly)
+        {
+            _filteredPorts = _filteredPorts.Where(p => p.IsWatched).ToList();
+        }
+
+        if (_showSystemServicesOnly)
+        {
+            _filteredPorts = _filteredPorts.Where(p => IsSystemService(p.ProcessName)).ToList();
+        }
+
+        if (_showTcpOnly)
+        {
+            _filteredPorts = _filteredPorts.Where(p => p.Protocol == "TCP").ToList();
+        }
+
+        if (_showUdpOnly)
+        {
+            _filteredPorts = _filteredPorts.Where(p => p.Protocol == "UDP").ToList();
+        }
+
+        if (_portRangeStart.HasValue || _portRangeEnd.HasValue)
+        {
+            var start = _portRangeStart ?? 1;
+            var end = _portRangeEnd ?? 65535;
+            _filteredPorts = _filteredPorts.Where(p => p.Port >= start && p.Port <= end).ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(_searchText))
+        {
+            var searchLower = _searchText.ToLower();
+            _filteredPorts = _filteredPorts.Where(p =>
+                p.Port.ToString().Contains(searchLower) ||
+                p.ProcessName.ToLower().Contains(searchLower) ||
+                p.Address.ToLower().Contains(searchLower)).ToList();
+        }
+
+        _filteredPorts = _sortBy switch
+        {
+            nameof(PortInfo.Port) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.Port).ToList() : _filteredPorts.OrderBy(p => p.Port).ToList(),
+            nameof(PortInfo.ProcessName) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.ProcessName).ToList() : _filteredPorts.OrderBy(p => p.ProcessName).ToList(),
+            nameof(PortInfo.Address) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.Address).ToList() : _filteredPorts.OrderBy(p => p.Address).ToList(),
+            nameof(PortInfo.User) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.User).ToList() : _filteredPorts.OrderBy(p => p.User).ToList(),
+            nameof(PortInfo.Pid) => _sortDesc ? _filteredPorts.OrderByDescending(p => p.Pid).ToList() : _filteredPorts.OrderBy(p => p.Pid).ToList(),
+            _ => _filteredPorts
+        };
+    }
+
+    // 系统服务进程列表及描述
+    private static readonly Dictionary<string, string> _systemServiceDescriptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        { "svchost", "Windows服务主机进程 - 承载多个Windows系统服务" },
+        { "services", "服务控制管理器 - 管理Windows系统服务的启动和停止" },
+        { "lsass", "本地安全认证子系统 - 处理用户登录和权限验证" },
+        { "csrss", "客户端/服务器运行时子系统 - Windows核心系统进程" },
+        { "smss", "会话管理器子系统 - 管理Windows会话" },
+        { "wininit", "Windows启动应用程序 - 系统启动初始化" },
+        { "winlogon", "Windows登录应用程序 - 处理用户登录" },
+        { "crss", "客户端/服务器运行时子系统 - Windows核心组件" },
+        { "system", "系统进程 - Windows操作系统核心" },
+        { "registry", "注册表进程 - Windows注册表管理" },
+        { "TermService", "远程桌面服务 - 允许远程桌面连接" },
+        { "RpcSs", "RPC服务 - 远程过程调用服务" },
+        { "Dhcp", "DHCP客户端 - 自动获取IP地址" },
+        { "Dnscache", "DNS客户端 - 域名解析服务" },
+        { "NlaSvc", "网络位置感知 - 检测网络连接状态" },
+        { "netlogon", "Netlogon服务 - 域登录验证服务" },
+        { "LanmanServer", "服务器服务 - 文件和打印机共享" },
+        { "LanmanWorkstation", "工作站服务 - 网络连接管理" }
+    };
+
+    private bool IsSystemService(string processName)
+    {
+        return _systemServiceDescriptions.ContainsKey(processName);
+    }
+
+    private string GetSystemServiceDescription(string processName)
+    {
+        return _systemServiceDescriptions.TryGetValue(processName, out var description) 
+            ? description 
+            : "Windows系统服务";
+    }
+
+    // 常见端口用途字典
+    private static readonly Dictionary<int, string> _portDescriptions = new Dictionary<int, string>
+    {
+        // Web服务
+        { 80, "HTTP - 网页浏览服务" },
+        { 443, "HTTPS - 安全网页浏览" },
+        { 8080, "HTTP代理/备用Web服务" },
+        { 8443, "HTTPS备用端口" },
+        
+        // 数据库
+        { 3306, "MySQL数据库服务" },
+        { 1433, "SQL Server数据库" },
+        { 5432, "PostgreSQL数据库" },
+        { 27017, "MongoDB数据库" },
+        { 6379, "Redis缓存服务" },
+        { 9200, "Elasticsearch搜索服务" },
+        
+        // 远程连接
+        { 3389, "远程桌面服务(RDP)" },
+        { 22, "SSH安全远程连接" },
+        { 23, "Telnet远程连接" },
+        { 5900, "VNC远程桌面" },
+        
+        // 邮件服务
+        { 25, "SMTP邮件发送" },
+        { 110, "POP3邮件接收" },
+        { 143, "IMAP邮件接收" },
+        { 465, "SMTPS安全邮件发送" },
+        { 587, "SMTP邮件提交" },
+        { 993, "IMAPS安全邮件接收" },
+        { 995, "POP3S安全邮件接收" },
+        
+        // 文件传输
+        { 21, "FTP文件传输" },
+        { 20, "FTP数据传输" },
+        { 69, "TFTP简单文件传输" },
+        { 445, "SMB文件共享" },
+        { 139, "NetBIOS文件共享" },
+        
+        // 开发工具
+        { 3000, "React/Vue/Grafana开发服务器" },
+        { 4200, "Angular开发服务器" },
+        { 5000, "Flask/Python开发服务器" },
+        { 8000, "Django开发服务器" },
+        { 9000, "PHP-FPM/Hadoop" },
+
+        // 消息队列
+        { 5672, "RabbitMQ消息队列" },
+        { 9092, "Kafka消息队列" },
+        { 2181, "ZooKeeper协调服务" },
+
+        // 监控和日志
+        { 9090, "Prometheus监控" },
+        { 5601, "Kibana日志分析" },
+        { 5044, "Logstash日志收集" },
+        
+        // 容器和编排
+        { 2375, "Docker守护进程" },
+        { 2376, "Docker安全连接" },
+        { 6443, "Kubernetes API" },
+        { 10250, "Kubelet节点代理" },
+        
+        // 游戏服务器
+        { 25565, "Minecraft服务器" },
+        { 27015, "Steam游戏服务器" },
+        
+        // 其他常用服务
+        { 53, "DNS域名解析" },
+        { 88, "Kerberos认证" },
+        { 389, "LDAP目录服务" },
+        { 636, "LDAPS安全目录服务" },
+        { 161, "SNMP网络监控" },
+        { 162, "SNMP Trap通知" },
+        { 1080, "SOCKS代理" },
+        { 3128, "Squid代理服务器" },
+        { 8140, "Puppet配置管理" },
+        { 8600, "Consul服务发现" },
+    };
+
+    private string GetPortDescription(int port)
+    {
+        return _portDescriptions.TryGetValue(port, out var description) 
+            ? description 
+            : string.Empty;
+    }
+
+    private void ToggleFilter(string filter)
+    {
+        switch (filter)
+        {
+            case "all":
+                _showFavoritesOnly = false;
+                _showWatchedOnly = false;
+                _showSystemServicesOnly = false;
+                _showTcpOnly = false;
+                _showUdpOnly = false;
+                break;
+            case "favorites":
+                _showFavoritesOnly = !_showFavoritesOnly;
+                _showWatchedOnly = false;
+                _showSystemServicesOnly = false;
+                _showTcpOnly = false;
+                _showUdpOnly = false;
+                break;
+            case "watched":
+                _showWatchedOnly = !_showWatchedOnly;
+                _showFavoritesOnly = false;
+                _showSystemServicesOnly = false;
+                _showTcpOnly = false;
+                _showUdpOnly = false;
+                break;
+            case "system":
+                _showSystemServicesOnly = !_showSystemServicesOnly;
+                _showFavoritesOnly = false;
+                _showWatchedOnly = false;
+                _showTcpOnly = false;
+                _showUdpOnly = false;
+                break;
+            case "tcp":
+                _showTcpOnly = !_showTcpOnly;
+                _showUdpOnly = false;
+                _showFavoritesOnly = false;
+                _showWatchedOnly = false;
+                _showSystemServicesOnly = false;
+                break;
+            case "udp":
+                _showUdpOnly = !_showUdpOnly;
+                _showTcpOnly = false;
+                _showFavoritesOnly = false;
+                _showWatchedOnly = false;
+                _showSystemServicesOnly = false;
+                break;
+        }
+        FilterPorts();
+    }
+
+    private void ToggleView()
+    {
+        _isTableView = !_isTableView;
+        StateHasChanged();
+    }
+
+    private void ToggleSort(string sortBy)
+    {
+        if (_sortBy == sortBy)
+        {
+            _sortDesc = !_sortDesc;
+        }
+        else
+        {
+            _sortBy = sortBy;
+            _sortDesc = false;
+        }
+        FilterPorts();
+    }
+
+    private void TogglePortSelection(int port, object? isChecked)
+    {
+        if (isChecked is bool selected)
+        {
+            if (selected)
+            {
+                _selectedPorts.Add(port);
+            }
+            else
+            {
+                _selectedPorts.Remove(port);
+            }
+        }
+    }
+
+    private void ClearSelection()
+    {
+        _selectedPorts.Clear();
+    }
+
+    private async Task BatchKillPorts()
+    {
+        if (_selectedPorts.Count == 0) return;
+
+        var killedCount = 0;
+        var accessDeniedCount = 0;
+        var errorMessages = new List<string>();
+        
+        foreach (var port in _selectedPorts.ToList())
+        {
+            try
+            {
+                PortScanner.KillPort(port);
+                
+                // 增量更新：直接从列表中移除被终止的端口
+                var portToRemove = _ports.FirstOrDefault(p => p.Port == port);
+                if (portToRemove != null)
+                {
+                    _ports.Remove(portToRemove);
+                    killedCount++;
+                }
+                
+                // 同时更新筛选后的列表
+                var filteredPortToRemove = _filteredPorts.FirstOrDefault(p => p.Port == port);
+                if (filteredPortToRemove != null)
+                {
+                    _filteredPorts.Remove(filteredPortToRemove);
+                }
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                accessDeniedCount++;
+                if (!errorMessages.Contains(ex.Message))
+                {
+                    errorMessages.Add(ex.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                XTrace.Log.Error($"Error killing port {port}: {ex.Message}");
+            }
+        }
+        
+        _selectedPorts.Clear();
+        StateHasChanged();
+        
+        // 显示结果通知
+        if (killedCount > 0 && accessDeniedCount > 0)
+        {
+            ShowNotification($"已终止 {killedCount} 个端口，{accessDeniedCount} 个端口权限不足", "warning");
+        }
+        else if (killedCount > 0)
+        {
+            ShowNotification($"已终止 {killedCount} 个端口", "success");
+        }
+        else if (accessDeniedCount > 0)
+        {
+            ShowNotification($"{accessDeniedCount} 个端口无法终止，请以管理员身份运行应用程序", "warning");
+        }
+    }
+
+    private void ShowPortDetails(PortInfo port)
+    {
+        _selectedPort = port;
+        _showPortDetailsModal = true;
+        _ = InvokeAsync(() => StateHasChanged());
+    }
+
+    private void ClosePortDetailsModal()
+    {
+        _showPortDetailsModal = false;
+        _selectedPort = null;
+        StateHasChanged();
+    }
+
+    private async Task CreateTunnelForPort(int port)
+    {
+        try
+        {
+            await TunnelService.CreateTunnelAsync(port);
+            ShowNotification($"端口 {port} 的隧道已创建", "success");
+            Navigation.NavigateTo("/tunnels");
+        }
+        catch (Exception ex)
+        {
+            XTrace.Log.Error($"Error creating tunnel: {ex.Message}");
+            ShowNotification($"创建隧道失败: {ex.Message}", "error");
+        }
+    }
+
+    private System.Timers.Timer? _notificationTimer;
+
+    private void ShowNotification(string message, string type = "success")
+    {
+        _notificationMessage = message;
+        _notificationType = type;
+        _notificationIcon = type switch
+        {
+            "success" => "✓",
+            "error" => "✕",
+            "warning" => "⚠",
+            "info" => "ℹ",
+            _ => "ℹ"
+        };
+        _showNotification = true;
+
+        // 同时添加到通知历史
+        NotificationService.AddNotification(type, _notificationIcon, message);
+
+        StateHasChanged();
+
+        // 自动隐藏通知
+        StartNotificationTimer();
+    }
+
+    private void StartNotificationTimer()
+    {
+        _notificationTimer?.Stop();
+        _notificationTimer?.Dispose();
+        
+        _notificationTimer = new System.Timers.Timer(5000); // 5秒后自动隐藏
+        _notificationTimer.Elapsed += (sender, e) =>
+        {
+            InvokeAsync(() =>
+            {
+                HideNotification();
+            });
+        };
+        _notificationTimer.AutoReset = false;
+        _notificationTimer.Start();
+    }
+
+    private void HideNotification()
+    {
+        _showNotification = false;
+        _notificationTimer?.Stop();
+        _notificationTimer?.Dispose();
+        _notificationTimer = null;
+        StateHasChanged();
+    }
+
+    private void ShowNotificationHistory()
+    {
+        _notificationHistory = NotificationService.GetNotificationHistory();
+        _showNotificationHistoryModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseNotificationHistoryModal()
+    {
+        _showNotificationHistoryModal = false;
+        StateHasChanged();
+    }
+
+    private void ClearNotificationHistory()
+    {
+        NotificationService.ClearHistory();
+        _notificationHistory.Clear();
+        ShowNotification("通知历史已清除", "success");
+    }
+
+    private string GetLastRefreshTimeText()
+    {
+        if (_lastRefreshTime == DateTime.MinValue)
+            return "从未刷新";
+
+        return _lastRefreshTime.ToString("HH:mm:ss");
+    }
+
+    private string GetRefreshDurationText()
+    {
+        if (_lastRefreshDuration.TotalSeconds < 1)
+            return $"{_lastRefreshDuration.TotalMilliseconds:F0}ms";
+        else if (_lastRefreshDuration.TotalSeconds < 60)
+            return $"{_lastRefreshDuration.TotalSeconds:F1}s";
+        else
+            return $"{_lastRefreshDuration.TotalMinutes:F1}m";
+    }
+
+    /// <summary>
+    /// 获取进程详细信息
+    /// </summary>
+    private ProcessDetails? GetProcessDetails(int pid)
+    {
+        if (pid <= 0) return null;
+
+        try
+        {
+            var process = System.Diagnostics.Process.GetProcessById(pid);
+            if (process == null) return null;
+
+            // 获取内存使用量（KB）
+            var memoryKB = process.WorkingSet64 / 1024;
+
+            // 获取CPU使用率
+            var cpuPercent = GetProcessCpuPercent(process);
+
+            // 获取进程优先级
+            var priority = GetPriorityText(process.PriorityClass);
+
+            // 获取启动时间
+            var startTime = GetStartTimeText(process.StartTime);
+
+            // 获取进程状态
+            var status = GetProcessStatus(process);
+
+            // 获取子进程数量
+            var childrenCount = 0;
+            try
+            {
+                var searcher = new System.Management.ManagementObjectSearcher(
+                    $"SELECT * FROM Win32_Process WHERE ParentProcessId = {pid}");
+                childrenCount = searcher.Get().Count;
+            }
+            catch { }
+
+            return new ProcessDetails
+            {
+                MemoryKB = memoryKB,
+                CpuPercent = cpuPercent,
+                Priority = priority,
+                StartTime = startTime,
+                ProcessStatus = status,
+                ChildrenCount = childrenCount
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 获取进程优先级文本
+    /// </summary>
+    private string GetPriorityText(System.Diagnostics.ProcessPriorityClass priority)
+    {
+        return priority switch
+        {
+            System.Diagnostics.ProcessPriorityClass.RealTime => "实时",
+            System.Diagnostics.ProcessPriorityClass.High => "高",
+            System.Diagnostics.ProcessPriorityClass.AboveNormal => "高于正常",
+            System.Diagnostics.ProcessPriorityClass.Normal => "正常",
+            System.Diagnostics.ProcessPriorityClass.BelowNormal => "低于正常",
+            System.Diagnostics.ProcessPriorityClass.Idle => "低",
+            _ => "未知"
+        };
+    }
+
+    /// <summary>
+    /// 获取启动时间文本
+    /// </summary>
+    private string GetStartTimeText(DateTime startTime)
+    {
+        var elapsed = DateTime.Now - startTime;
+        
+        if (elapsed.TotalDays >= 1)
+            return $"{elapsed.TotalDays:F0} 天前";
+        else if (elapsed.TotalHours >= 1)
+            return $"{elapsed.TotalHours:F0} 小时前";
+        else if (elapsed.TotalMinutes >= 1)
+            return $"{elapsed.TotalMinutes:F0} 分钟前";
+        else
+            return $"{elapsed.TotalSeconds:F0} 秒前";
+    }
+
+    /// <summary>
+    /// 获取进程状态
+    /// </summary>
+    private ProcessStatus GetProcessStatus(System.Diagnostics.Process process)
+    {
+        try
+        {
+            if (process.HasExited)
+                return ProcessStatus.Exited;
+            
+            // 检查是否响应
+            if (!process.Responding)
+                return ProcessStatus.NotResponding;
+            
+            return ProcessStatus.Running;
+        }
+        catch
+        {
+            return ProcessStatus.Unknown;
+        }
+    }
+
+    /// <summary>
+    /// 获取进程CPU使用率
+    /// </summary>
+    private double GetProcessCpuPercent(System.Diagnostics.Process process)
+    {
+        try
+        {
+            // 获取初始CPU时间
+            var startTime = DateTime.UtcNow;
+            var startCpuUsage = process.TotalProcessorTime;
+
+            // 等待一小段时间
+            System.Threading.Thread.Sleep(100);
+
+            // 获取结束CPU时间
+            var endTime = DateTime.UtcNow;
+            var endCpuUsage = process.TotalProcessorTime;
+
+            // 计算CPU使用率
+            var cpuUsedMs = (endCpuUsage - startCpuUsage).TotalMilliseconds;
+            var totalMsPassed = (endTime - startTime).TotalMilliseconds;
+            var cpuCount = Environment.ProcessorCount;
+
+            var cpuPercent = cpuUsedMs / (totalMsPassed * cpuCount) * 100;
+
+            return Math.Min(cpuPercent, 100); // 限制在100%以内
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 打开进程所在文件夹
+    /// </summary>
+    /// <summary>
+    /// 打开进程所在文件夹（异步执行，避免阻塞UI）
+    /// </summary>
+    private async Task OpenProcessFolder(string command)
+    {
+        // 立即关闭弹窗，提供即时反馈
+        ClosePortDetailsModal();
+        
+        await Task.Run(() =>
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(command)) return;
+
+                var folderPath = Path.GetDirectoryName(command);
+                if (string.IsNullOrEmpty(folderPath)) return;
+
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{command}\"",
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                XTrace.Log.Error($"Error opening process folder: {ex.Message}");
+                // 使用InvokeAsync确保在主线程上显示通知
+                InvokeAsync(() => ShowNotification("打开文件夹失败", "error"));
+            }
+        });
+    }
+
+    /// <summary>
+    /// 打开任务管理器（异步执行，避免阻塞UI）
+    /// </summary>
+    private async Task OpenTaskManager(int pid)
+    {
+        // 立即关闭弹窗，提供即时反馈
+        ClosePortDetailsModal();
+        
+        await Task.Run(() =>
+        {
+            try
+            {
+                // 启动任务管理器
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "taskmgr.exe",
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process.Start(psi);
+
+                // 使用InvokeAsync确保在主线程上显示通知
+                InvokeAsync(() => ShowNotification("任务管理器已打开", "success"));
+            }
+            catch (Exception ex)
+            {
+                XTrace.Log.Error($"Error opening task manager: {ex.Message}");
+                InvokeAsync(() => ShowNotification("打开任务管理器失败", "error"));
+            }
+        });
+    }
+
+    /// <summary>
+    /// 进程状态枚举
+    /// </summary>
+    private enum ProcessStatus
+    {
+        Running,
+        NotResponding,
+        Exited,
+        Unknown
+    }
+
+    /// <summary>
+    /// 进程详情数据类
+    /// </summary>
+    private class ProcessDetails
+    {
+        public long MemoryKB { get; set; }
+        public double CpuPercent { get; set; }
+        public string Priority { get; set; } = "正常";
+        public string StartTime { get; set; } = "";
+        public ProcessStatus ProcessStatus { get; set; } = ProcessStatus.Unknown;
+        public int ChildrenCount { get; set; }
+    }
+
+    /// <summary>
+    /// 格式化内存显示（自动切换 KB/MB）
+    /// </summary>
+    private string FormatMemory(long memoryKB)
+    {
+        if (memoryKB >= 1024)
+        {
+            return $"{memoryKB / 1024.0:F1} MB";
+        }
+        else
+        {
+            return $"{memoryKB} KB";
+        }
+    }
+
+    /// <summary>
+    /// 获取CPU样式类
+    /// </summary>
+    private string GetCpuClass(double cpuPercent)
+    {
+        return cpuPercent switch
+        {
+            >= 80 => "cpu-high",
+            >= 50 => "cpu-medium",
+            > 0 => "cpu-low",
+            _ => ""
+        };
+    }
+
+    /// <summary>
+    /// 获取状态样式类
+    /// </summary>
+    private string GetStatusClass(ProcessStatus? status)
+    {
+        return status switch
+        {
+            ProcessStatus.Running => "status-running",
+            ProcessStatus.NotResponding => "status-not-responding",
+            ProcessStatus.Exited => "status-exited",
+            _ => "status-unknown"
+        };
+    }
+
+    /// <summary>
+    /// 获取状态文本
+    /// </summary>
+    private string GetStatusText(ProcessStatus? status, bool canKill)
+    {
+        var statusText = status switch
+        {
+            ProcessStatus.Running => "● 运行中",
+            ProcessStatus.NotResponding => "⚠ 未响应",
+            ProcessStatus.Exited => "✕ 已退出",
+            _ => "? 未知"
+        };
+
+        if (!canKill && status == ProcessStatus.Running)
+        {
+            statusText += " 🛡️";
+        }
+
+        return statusText;
+    }
+
+    private string GetCurrentRefreshDurationText()
+    {
+        // 如果还没有设置开始时间，返回 0ms
+        if (_currentRefreshStartTime == DateTime.MinValue)
+            return "0ms";
+
+        var elapsed = DateTime.Now - _currentRefreshStartTime;
+        if (elapsed.TotalSeconds < 1)
+            return $"{elapsed.TotalMilliseconds:F0}ms";
+        else if (elapsed.TotalSeconds < 60)
+            return $"{elapsed.TotalSeconds:F1}s";
+        else
+            return $"{elapsed.TotalMinutes:F1}m";
+    }
+
+    private RenderFragment GetAccessDirectionBadge(PortAccessDirection direction)
+    {
+        return direction switch
+        {
+            PortAccessDirection.Bidirectional => @<span class="access-badge bidirectional" title="允许入站和出站">🔄 双向</span>,
+            PortAccessDirection.Inbound => @<span class="access-badge inbound" title="仅允许入站">📥 入站</span>,
+            PortAccessDirection.Outbound => @<span class="access-badge outbound" title="仅允许出站">📤 出站</span>,
+            PortAccessDirection.Blocked => @<span class="access-badge blocked" title="已阻止">🚫 阻止</span>,
+            _ => @<span class="access-badge unknown" title="未知">❓ 未知</span>
+        };
+    }
+
+    private RenderFragment GetAccessDirectionArrow(PortAccessDirection direction)
+    {
+        return direction switch
+        {
+            PortAccessDirection.Bidirectional => @<span class="access-arrow bidirectional" title="允许入站和出站">⇄</span>,
+            PortAccessDirection.Inbound => @<span class="access-arrow inbound" title="仅允许入站">←</span>,
+            PortAccessDirection.Outbound => @<span class="access-arrow outbound" title="仅允许出站">→</span>,
+            PortAccessDirection.Blocked => @<span class="access-arrow blocked" title="已阻止">✕</span>,
+            _ => @<span class="access-arrow unknown" title="未知">?</span>
+        };
+    }
+
+    /// <summary>
+    /// 获取端口用途说明
+    /// </summary>
+    private string GetPortUsageDescription(int port)
+    {
+        return port switch
+        {
+            20 => "FTP 数据传输",
+            21 => "FTP 控制连接",
+            22 => "SSH 安全 shell",
+            23 => "Telnet 远程登录",
+            25 => "SMTP 邮件发送",
+            53 => "DNS 域名解析",
+            80 => "HTTP 网页服务",
+            110 => "POP3 邮件接收",
+            143 => "IMAP 邮件访问",
+            443 => "HTTPS 安全网页",
+            3306 => "MySQL 数据库",
+            3389 => "RDP 远程桌面",
+            5432 => "PostgreSQL 数据库",
+            6379 => "Redis 缓存",
+            8080 => "HTTP 代理/备用",
+            8443 => "HTTPS 备用",
+            27017 => "MongoDB 数据库",
+            _ => $"端口 {port}"
+        };
+    }
+}

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>PortManager.Core</AssemblyName>
+    <AssemblyTitle>PortManager 核心库</AssemblyTitle>
+    <Description>PortManager 核心类库，包含模型和服务</Description>
+    <Company>科控物联</Company>
+    <Copyright>©2024-2026 科控物联</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.0.2025.201" />
+    <PackageReference Include="System.Management" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

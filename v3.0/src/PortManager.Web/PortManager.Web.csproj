@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>PortManager.Web</AssemblyName>
+    <AssemblyTitle>端口管理器 Web 版</AssemblyTitle>
+    <Description>PortManager Web 版，功能强大的端口管理工具</Description>
+    <Company>科控物联</Company>
+    <Copyright>©2024-2026 科控物联</Copyright>
+    <VersionPrefix>3.0</VersionPrefix>
+    <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
+    <Version>$(VersionPrefix).$(VersionSuffix)</Version>
+    <FileVersion>$(Version)</FileVersion>
+    <AssemblyVersion>$(VersionPrefix).*</AssemblyVersion>
+    <Deterministic>false</Deterministic>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>1701;1702;NU5104;NETSDK1138;CS7035;CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Masa.Blazor" Version="1.11.9" />
+    <PackageReference Include="System.Management" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PortManager.Core\PortManager.Core.csproj" />
+    <ProjectReference Include="..\PortManager.Shared\PortManager.Shared.csproj" />
+  </ItemGroup>
+
+</Project>
