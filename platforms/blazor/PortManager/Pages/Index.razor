@@ -1,0 +1,261 @@
+@page "/"
+@using PortManager.Services
+@using PortManager.Models
+@inject NavigationManager Navigation
+@inject ThemeService ThemeService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>PortManager</PageTitle>
+
+<NavigationMenu />
+
+<MContainer Class="pt-4">
+    <!-- 标题区域 -->
+    <MRow Dense Class="mb-6">
+        <MCol Cols="12">
+            <div class="text-center">
+                <div class="d-inline-flex align-center justify-center rounded-circle mb-3" style="width: 80px; height: 80px; background: var(--m-primary-color-4);">
+                    <MIcon Size="48" Color="primary">mdi-lan-connect</MIcon>
+                </div>
+                <h1 class="text-h3 font-weight-bold mb-2">PortManager</h1>
+                <p class="text-body1 text--secondary">功能强大的端口管理工具</p>
+            </div>
+        </MCol>
+    </MRow>
+
+    <!-- 功能卡片 -->
+    <MRow Dense Justify="JustifyTypes.Center" Class="mb-6">
+        <MCol Cols="12" Sm="6" Md="5" Lg="4" Class="pa-2">
+            <MCard Elevation="4" Hover OnClick="@GoToPorts" Class="cursor-pointer transition-swing h-100">
+                <MCardText Class="text-center pa-6">
+                    <div class="d-inline-flex align-center justify-center rounded-circle mb-4" style="width: 64px; height: 64px; background: var(--m-primary-color-4);">
+                        <MIcon Size="32" Color="primary">mdi-lan-connect</MIcon>
+                    </div>
+                    <h2 class="text-h5 font-weight-bold mb-3">端口管理</h2>
+                    <p class="text-body2 text--secondary mb-4">查看和管理系统端口，支持过滤、收藏和监控</p>
+                    <div class="d-flex flex-wrap justify-center gap-2">
+                        <MChip Small Outlined Color="primary">扫描端口</MChip>
+                        <MChip Small Outlined Color="primary">终止进程</MChip>
+                        <MChip Small Outlined Color="primary">收藏端口</MChip>
+                    </div>
+                </MCardText>
+            </MCard>
+        </MCol>
+        <MCol Cols="12" Sm="6" Md="5" Lg="4" Class="pa-2">
+            <MCard Elevation="4" Hover OnClick="@GoToTunnels" Class="cursor-pointer transition-swing h-100">
+                <MCardText Class="text-center pa-6">
+                    <div class="d-inline-flex align-center justify-center rounded-circle mb-4" style="width: 64px; height: 64px; background: var(--m-info-color-4);">
+                        <MIcon Size="32" Color="info">mdi-earth</MIcon>
+                    </div>
+                    <h2 class="text-h5 font-weight-bold mb-3">隧道管理</h2>
+                    <p class="text-body2 text--secondary mb-4">创建和管理Cloudflare隧道，一键发布至公网</p>
+                    <div class="d-flex flex-wrap justify-center gap-2">
+                        <MChip Small Outlined Color="info">创建隧道</MChip>
+                        <MChip Small Outlined Color="info">停止隧道</MChip>
+                        <MChip Small Outlined Color="info">复制URL</MChip>
+                    </div>
+                </MCardText>
+            </MCard>
+        </MCol>
+    </MRow>
+
+    <!-- 关于部分 -->
+    <MRow Dense>
+        <MCol Cols="12">
+            <MCard Elevation="2" Class="transition-swing">
+                <MCardTitle Class="py-4 px-4 d-flex align-center">
+                    <MIcon Small Color="primary" Class="mr-2">mdi-information</MIcon>
+                    <span class="text-h6 font-weight-medium">关于 PortManager</span>
+                </MCardTitle>
+                <MDivider />
+                <MCardText Class="pa-4">
+                    <p class="text-body1 mb-6 text-center">PortManager 是一个功能强大的端口管理工具，帮助您轻松管理系统端口和创建 Cloudflare 隧道。</p>
+                    
+                    <!-- 应用功能 -->
+                    <div class="mb-6">
+                        <h5 class="text-subtitle-1 font-weight-medium mb-4 d-flex align-center">
+                            <MIcon Small Color="primary" Class="mr-2">mdi-feature-search</MIcon>
+                            应用功能
+                        </h5>
+                        <MRow Dense Justify="JustifyTypes.Center">
+                            <MCol Cols="6" Sm="4" Md="3" Lg="2" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-2 transition-swing h-100" Hover>
+                                    <div class="d-flex flex-column align-center text-center">
+                                        <div class="d-flex align-center justify-center rounded mb-2" style="width: 36px; height: 36px; background: var(--m-primary-color-4);">
+                                            <MIcon Small Color="primary">mdi-lan-connect</MIcon>
+                                        </div>
+                                        <span class="text-caption">端口监控</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="4" Md="3" Lg="2" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-2 transition-swing h-100" Hover>
+                                    <div class="d-flex flex-column align-center text-center">
+                                        <div class="d-flex align-center justify-center rounded mb-2" style="width: 36px; height: 36px; background: var(--m-error-color-4);">
+                                            <MIcon Small Color="error">mdi-lightning-bolt</MIcon>
+                                        </div>
+                                        <span class="text-caption">终止进程</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="4" Md="3" Lg="2" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-2 transition-swing h-100" Hover>
+                                    <div class="d-flex flex-column align-center text-center">
+                                        <div class="d-flex align-center justify-center rounded mb-2" style="width: 36px; height: 36px; background: var(--m-info-color-4);">
+                                            <MIcon Small Color="info">mdi-earth</MIcon>
+                                        </div>
+                                        <span class="text-caption">隧道管理</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="4" Md="3" Lg="2" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-2 transition-swing h-100" Hover>
+                                    <div class="d-flex flex-column align-center text-center">
+                                        <div class="d-flex align-center justify-center rounded mb-2" style="width: 36px; height: 36px; background: var(--m-warning-color-4);">
+                                            <MIcon Small Color="warning">mdi-star</MIcon>
+                                        </div>
+                                        <span class="text-caption">端口收藏</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="4" Md="3" Lg="2" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-2 transition-swing h-100" Hover>
+                                    <div class="d-flex flex-column align-center text-center">
+                                        <div class="d-flex align-center justify-center rounded mb-2" style="width: 36px; height: 36px; background: var(--m-success-color-4);">
+                                            <MIcon Small Color="success">mdi-eye</MIcon>
+                                        </div>
+                                        <span class="text-caption">状态通知</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="4" Md="3" Lg="2" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-2 transition-swing h-100" Hover>
+                                    <div class="d-flex flex-column align-center text-center">
+                                        <div class="d-flex align-center justify-center rounded mb-2" style="width: 36px; height: 36px; background: var(--m-secondary-color-4);">
+                                            <MIcon Small Color="secondary">mdi-palette</MIcon>
+                                        </div>
+                                        <span class="text-caption">主题切换</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="4" Md="3" Lg="2" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="pa-2 transition-swing h-100" Hover>
+                                    <div class="d-flex flex-column align-center text-center">
+                                        <div class="d-flex align-center justify-center rounded mb-2" style="width: 36px; height: 36px; background: var(--m-accent-color-4);">
+                                            <MIcon Small Color="accent">mdi-magnify</MIcon>
+                                        </div>
+                                        <span class="text-caption">搜索筛选</span>
+                                    </div>
+                                </MCard>
+                            </MCol>
+                        </MRow>
+                    </div>
+
+                    <!-- 技术栈 -->
+                    <div class="mb-6">
+                        <h5 class="text-subtitle-1 font-weight-medium mb-4 d-flex align-center">
+                            <MIcon Small Color="primary" Class="mr-2">mdi-code-tags</MIcon>
+                            技术栈
+                        </h5>
+                        <MRow Dense Justify="JustifyTypes.Center">
+                            <MCol Cols="6" Sm="3" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="h-100 transition-swing" Hover>
+                                    <MCardText Class="text-center pa-4">
+                                        <div class="d-inline-flex align-center justify-center rounded-circle mb-3" style="width: 48px; height: 48px; background: var(--m-primary-color-4);">
+                                            <MIcon Color="primary">mdi-dot-net</MIcon>
+                                        </div>
+                                        <p class="text-body2 font-weight-medium mb-0">.NET 10</p>
+                                    </MCardText>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="3" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="h-100 transition-swing" Hover>
+                                    <MCardText Class="text-center pa-4">
+                                        <div class="d-inline-flex align-center justify-center rounded-circle mb-3" style="width: 48px; height: 48px; background: var(--m-info-color-4);">
+                                            <MIcon Color="info">mdi-web</MIcon>
+                                        </div>
+                                        <p class="text-body2 font-weight-medium mb-0">Blazor Server</p>
+                                    </MCardText>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="3" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="h-100 transition-swing" Hover>
+                                    <MCardText Class="text-center pa-4">
+                                        <div class="d-inline-flex align-center justify-center rounded-circle mb-3" style="width: 48px; height: 48px; background: var(--m-success-color-4);">
+                                            <MIcon Color="success">mdi-palette</MIcon>
+                                        </div>
+                                        <p class="text-body2 font-weight-medium mb-0">MASA Blazor</p>
+                                    </MCardText>
+                                </MCard>
+                            </MCol>
+                            <MCol Cols="6" Sm="3" Class="pa-1">
+                                <MCard Elevation="0" Outlined Class="h-100 transition-swing" Hover>
+                                    <MCardText Class="text-center pa-4">
+                                        <div class="d-inline-flex align-center justify-center rounded-circle mb-3" style="width: 48px; height: 48px; background: var(--m-warning-color-4);">
+                                            <MIcon Color="warning">mdi-cloud</MIcon>
+                                        </div>
+                                        <p class="text-body2 font-weight-medium mb-0">Cloudflare</p>
+                                    </MCardText>
+                                </MCard>
+                            </MCol>
+                        </MRow>
+                    </div>
+
+                    <!-- 版本与开发者信息 -->
+                    <MRow Dense>
+                        <MCol Cols="12">
+                            <MCard Elevation="0" Outlined Class="pa-4 transition-swing" Hover>
+                                <div class="d-flex align-start gap-4">
+                                    <div class="d-flex align-center justify-center rounded-circle flex-shrink-0" style="width: 48px; height: 48px; background: var(--m-primary-color-4);">
+                                        <MIcon Color="primary">mdi-account-group</MIcon>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <h5 class="text-subtitle-1 font-weight-medium mb-3">版本与开发者信息</h5>
+                                        <MRow Dense>
+                                            <MCol Cols="6" Sm="3">
+                                                <div class="mb-2">
+                                                    <span class="text-caption text--secondary d-block mb-1">版本号</span>
+                                                    <span class="text-body1 font-weight-medium">v2.0-20260221</span>
+                                                </div>
+                                            </MCol>
+                                            <MCol Cols="6" Sm="3">
+                                                <div class="mb-2">
+                                                    <span class="text-caption text--secondary d-block mb-1">运行平台</span>
+                                                    <span class="text-body1 font-weight-medium">Blazor Web</span>
+                                                </div>
+                                            </MCol>
+                                            <MCol Cols="6" Sm="3">
+                                                <div class="mb-2">
+                                                    <span class="text-caption text--secondary d-block mb-1">开发团队</span>
+                                                    <span class="text-body1 font-weight-medium">科控物联</span>
+                                                </div>
+                                            </MCol>
+                                            <MCol Cols="6" Sm="3">
+                                                <div class="mb-2">
+                                                    <span class="text-caption text--secondary d-block mb-1">联系QQ</span>
+                                                    <span class="text-body1 font-weight-medium">2492123056</span>
+                                                </div>
+                                            </MCol>
+                                        </MRow>
+                                    </div>
+                                </div>
+                            </MCard>
+                        </MCol>
+                    </MRow>
+                </MCardText>
+            </MCard>
+        </MCol>
+    </MRow>
+</MContainer>
+
+@code {
+    private void GoToPorts()
+    {
+        Navigation.NavigateTo("/ports");
+    }
+
+    private void GoToTunnels()
+    {
+        Navigation.NavigateTo("/tunnels");
+    }
+}
