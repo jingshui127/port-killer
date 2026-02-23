@@ -969,40 +969,41 @@
         gap: 12px;
         width: 100%;
         align-content: start;
+        justify-content: start;
     }
 
     /* 大屏幕显示8列 */
     @@media (min-width: 1920px) {
         .port-list {
-            grid-template-columns: repeat(8, 1fr);
+            grid-template-columns: repeat(8, minmax(220px, 1fr));
         }
     }
 
     /* 中等屏幕显示6列 */
     @@media (min-width: 1440px) and (max-width: 1919px) {
         .port-list {
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: repeat(6, minmax(220px, 1fr));
         }
     }
 
     /* 小屏幕显示4列 */
     @@media (min-width: 1024px) and (max-width: 1439px) {
         .port-list {
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(4, minmax(220px, 1fr));
         }
     }
 
     /* 平板显示3列 */
     @@media (min-width: 768px) and (max-width: 1023px) {
         .port-list {
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(3, minmax(220px, 1fr));
         }
     }
 
     /* 手机显示2列 */
     @@media (min-width: 480px) and (max-width: 767px) {
         .port-list {
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(2, minmax(160px, 1fr));
         }
     }
 
@@ -3806,7 +3807,7 @@
         }).ToList();
     }
 
-    // 系统服务进程列表及描述
+    // Windows 系统服务进程列表及描述
     private static readonly Dictionary<string, string> _systemServiceDescriptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         { "svchost", "Windows服务主机进程 - 承载多个Windows系统服务" },
@@ -3829,16 +3830,82 @@
         { "LanmanWorkstation", "工作站服务 - 网络连接管理" }
     };
 
+    // Linux 系统服务进程列表
+    private static readonly HashSet<string> _linuxSystemProcesses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        // 内核和初始化进程
+        "systemd", "init", "kthreadd", "kworker", "ksoftirqd", "migration", "watchdog",
+        // 系统服务
+        "sshd", "cron", "rsyslogd", "syslog-ng", "journald", "dbus-daemon",
+        // 网络服务
+        "NetworkManager", "networkd", "wpa_supplicant", "dhclient", "dhcpcd",
+        // 文件系统
+        "udevd", "tmpwatch", "logrotate",
+        // 安全相关
+        "polkitd", "auditd", "selinux", "apparmor",
+        // 容器相关
+        "dockerd", "containerd", "containerd-shim",
+        // 显示服务
+        "Xorg", "X", "gdm", "lightdm", "sddm",
+        // 其他系统服务
+        "accounts-daemon", "acpid", "atd", "bluetoothd", "cupsd",
+        "haveged", "irqbalance", "ModemManager", "rtkit-daemon",
+        "smartd", "thermald", "udisksd", "upowerd"
+    };
+
     private bool IsSystemService(string processName)
     {
-        return _systemServiceDescriptions.ContainsKey(processName);
+        if (string.IsNullOrEmpty(processName)) return false;
+        
+        // 检查 Windows 系统服务
+        if (_systemServiceDescriptions.ContainsKey(processName))
+            return true;
+        
+        // 检查 Linux 系统服务
+        if (_linuxSystemProcesses.Contains(processName))
+            return true;
+        
+        // Linux: 检查是否是内核线程 (以 [ 开头和 ] 结尾)
+        if (processName.StartsWith("[") && processName.EndsWith("]"))
+            return true;
+        
+        return false;
     }
 
     private string GetSystemServiceDescription(string processName)
     {
-        return _systemServiceDescriptions.TryGetValue(processName, out var description) 
-            ? description 
-            : "Windows系统服务";
+        // Windows 系统服务
+        if (_systemServiceDescriptions.TryGetValue(processName, out var winDesc))
+            return winDesc;
+        
+        // Linux 系统服务描述
+        return GetLinuxSystemServiceDescription(processName);
+    }
+    
+    private string GetLinuxSystemServiceDescription(string processName)
+    {
+        return processName.ToLowerInvariant() switch
+        {
+            "systemd" => "系统和服务管理器 - Linux系统初始化和服务管理",
+            "init" => "系统初始化进程 - 第一个用户空间进程",
+            "sshd" => "SSH守护进程 - 安全远程登录服务",
+            "cron" => "定时任务守护进程 - 执行计划任务",
+            "rsyslogd" => "系统日志服务 - 记录系统日志",
+            "journald" => "系统日志服务 - systemd日志管理",
+            "dbus-daemon" => "D-Bus消息总线 - 进程间通信",
+            "networkmanager" => "网络管理器 - 管理网络连接",
+            "dockerd" => "Docker守护进程 - 容器管理服务",
+            "containerd" => "容器运行时 - 容器生命周期管理",
+            "polkitd" => "策略工具包守护进程 - 权限管理",
+            "udevd" => "设备管理器 - 管理硬件设备",
+            "xorg" or "x" => "X窗口系统 - 图形显示服务器",
+            "gdm" => "GNOME显示管理器 - 图形登录界面",
+            "lightdm" => "LightDM显示管理器 - 图形登录界面",
+            "kthreadd" => "内核线程守护进程 - 管理内核线程",
+            "kworker" => "内核工作线程 - 处理内核任务",
+            _ when processName.StartsWith("[") && processName.EndsWith("]") => "内核线程 - Linux内核内部进程",
+            _ => "Linux系统服务"
+        };
     }
 
     // 常见端口用途字典
