@@ -2,7 +2,7 @@ using System;
 
 namespace PortManager.Models;
 
-public class CloudflareTunnel
+public class Tunnel
 {
     public int Port { get; set; }
     public string TunnelUrl { get; set; } = string.Empty;
@@ -23,4 +23,3 @@ public class CloudflareTunnel
     public string? LinkStatusMessage { get; set; }
     public DateTime? LastChecked { get; set; }
 }
-

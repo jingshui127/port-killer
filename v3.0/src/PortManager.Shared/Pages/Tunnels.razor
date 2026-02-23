@@ -364,7 +364,7 @@ mv cloudflared /usr/local/bin/</div>
 </MDialog>
 
 @code {
-    private List<CloudflareTunnel> _tunnels = new();
+    private List<Tunnel> _tunnels = new();
     private CloudflaredStatus? _cloudflaredStatus;
     private int _newTunnelPort;
     private string _newTunnelName = string.Empty;
@@ -538,7 +538,7 @@ mv cloudflared /usr/local/bin/</div>
         }
     }
 
-    private async Task RestartTunnel(CloudflareTunnel tunnel)
+    private async Task RestartTunnel(Tunnel tunnel)
     {
         try
         {
@@ -693,7 +693,7 @@ mv cloudflared /usr/local/bin/</div>
         {
             tunnel.TunnelName = args.NewName;
             // 保存到设置
-            var tunnelsToSave = _tunnels.Select(t => new CloudflareTunnel
+            var tunnelsToSave = _tunnels.Select(t => new Tunnel
             {
                 Port = t.Port,
                 TunnelUrl = t.TunnelUrl,
@@ -750,7 +750,7 @@ mv cloudflared /usr/local/bin/</div>
     /// <summary>
     /// 检测链接状态
     /// </summary>
-    private async Task CheckLinkStatus(CloudflareTunnel tunnel)
+    private async Task CheckLinkStatus(Tunnel tunnel)
     {
         tunnel.LinkStatus = "Checking";
         tunnel.LastChecked = DateTime.Now;

@@ -32,7 +32,7 @@ public class SettingsService
     {
         public List<int>? Favorites { get; set; }
         public List<WatchedPort>? WatchedPorts { get; set; }
-        public List<CloudflareTunnel>? ActiveTunnels { get; set; }
+        public List<Tunnel>? ActiveTunnels { get; set; }
     }
 
     private SettingsData LoadSettingsData()
@@ -117,10 +117,10 @@ public class SettingsService
         SaveSettingsData(data);
     }
 
-    public List<CloudflareTunnel> GetActiveTunnels()
+    public List<Tunnel> GetActiveTunnels()
     {
         var data = LoadSettingsData();
-        var tunnels = data.ActiveTunnels ?? new List<CloudflareTunnel>();
+        var tunnels = data.ActiveTunnels ?? new List<Tunnel>();
         
         _logger?.LogInformation($"[SettingsService] Loaded {tunnels.Count} tunnels from settings");
         foreach (var tunnel in tunnels)
@@ -131,7 +131,7 @@ public class SettingsService
         return tunnels;
     }
 
-    public void SaveActiveTunnels(List<CloudflareTunnel> tunnels)
+    public void SaveActiveTunnels(List<Tunnel> tunnels)
     {
         var data = LoadSettingsData();
         data.ActiveTunnels = tunnels;

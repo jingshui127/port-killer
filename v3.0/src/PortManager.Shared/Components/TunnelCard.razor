@@ -1,5 +1,6 @@
 @using PortManager.Models
 @using PortManager.Services
+@using PortManager.Utils
 @inject TunnelService TunnelService
 
 <MCard Elevation="2" Class="@GetCardClass()" Hover Style="width: 100%; display: flex; flex-direction: column;">
@@ -132,7 +133,7 @@
                 }
                 @if (Tunnel.LastChecked.HasValue && Tunnel.LinkStatus != "Unknown" && Tunnel.LinkStatus != "Checking")
                 {
-                    <span class="text-caption text--disabled">(@GetTimeAgo(Tunnel.LastChecked.Value))</span>
+                    <span class="text-caption text--disabled">(@DateTimeUtils.GetTimeAgo(Tunnel.LastChecked.Value))</span>
                 }
                 <MSpacer />
                 @if (Tunnel.LinkStatus != "Checking")
@@ -191,11 +192,11 @@
 </MCard>
 
 @code {
-    [Parameter] public CloudflareTunnel Tunnel { get; set; } = null!;
+    [Parameter] public Tunnel Tunnel { get; set; } = null!;
     [Parameter] public bool IsLightTheme { get; set; }
 
-    [Parameter] public EventCallback<CloudflareTunnel> OnCheckLinkStatus { get; set; }
-    [Parameter] public EventCallback<CloudflareTunnel> OnRestart { get; set; }
+    [Parameter] public EventCallback<Tunnel> OnCheckLinkStatus { get; set; }
+    [Parameter] public EventCallback<Tunnel> OnRestart { get; set; }
     [Parameter] public EventCallback<int> OnStop { get; set; }
     [Parameter] public EventCallback<string> OnCopy { get; set; }
     [Parameter] public EventCallback<(int Port, string NewName)> OnNameChanged { get; set; }
@@ -309,20 +310,6 @@
             TunnelProvider.LocalTunnel => "background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white;",
             _ => "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;"
         };
-    }
-
-    private string GetTimeAgo(DateTime dateTime)
-    {
-        var timeSpan = DateTime.Now - dateTime;
-
-        if (timeSpan.TotalMinutes < 1)
-            return "刚刚";
-        if (timeSpan.TotalHours < 1)
-            return $"{(int)timeSpan.TotalMinutes}分钟前";
-        if (timeSpan.TotalDays < 1)
-            return $"{(int)timeSpan.TotalHours}小时前";
-
-        return $"{(int)timeSpan.TotalDays}天前";
     }
 
     private async Task CopyToClipboard(string text)

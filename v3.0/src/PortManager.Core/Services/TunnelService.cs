@@ -10,7 +10,7 @@ namespace PortManager.Services;
 
 public class TunnelService
 {
-    private readonly ConcurrentDictionary<int, CloudflareTunnel> _tunnels = new();
+    private readonly ConcurrentDictionary<int, Tunnel> _tunnels = new();
     private readonly ConcurrentDictionary<int, Process> _tunnelProcesses = new();
     private readonly ConcurrentDictionary<int, string> _tunnelUrls = new();
     private readonly ConcurrentDictionary<int, string> _tunnelErrors = new();
@@ -100,7 +100,7 @@ public class TunnelService
                     tunnelUrl = _tunnelUrls.GetValueOrDefault(savedTunnel.Port, string.Empty);
                 }
                 
-                var tunnel = new CloudflareTunnel
+                var tunnel = new Tunnel
                 {
                     Port = savedTunnel.Port,
                     Status = "Active",
@@ -160,7 +160,7 @@ public class TunnelService
                 // 没有找到对应的进程，保留隧道信息但标记为停止状态
                 _logger?.LogInformation($"[TunnelService] No running process found for port {savedTunnel.Port}, keeping tunnel info for manual restart");
                 
-                var tunnel = new CloudflareTunnel
+                var tunnel = new Tunnel
                 {
                     Port = savedTunnel.Port,
                     Status = "Stopped",
@@ -182,7 +182,7 @@ public class TunnelService
         _ = CleanupOrphanedTunnelsAsync();
     }
 
-    private async Task RestartTunnelOnStartupAsync(CloudflareTunnel savedTunnel)
+    private async Task RestartTunnelOnStartupAsync(Tunnel savedTunnel)
     {
         try
         {
@@ -191,7 +191,7 @@ public class TunnelService
             // 保留原来的URL，如果重启失败可以恢复
             var originalUrl = savedTunnel.TunnelUrl;
             
-            var newTunnel = new CloudflareTunnel
+            var newTunnel = new Tunnel
             {
                 Port = savedTunnel.Port,
                 Status = "Starting",
@@ -287,7 +287,7 @@ public class TunnelService
         }
     }
 
-    public List<CloudflareTunnel> GetTunnels()
+    public List<Tunnel> GetTunnels()
     {
         var tunnels = _tunnels.Values.ToList();
 
@@ -313,7 +313,7 @@ public class TunnelService
         return _tunnels.ContainsKey(port);
     }
 
-    public CloudflareTunnel? GetTunnelForPort(int port)
+    public Tunnel? GetTunnelForPort(int port)
     {
         if (_tunnels.TryGetValue(port, out var tunnel))
         {
@@ -502,12 +502,12 @@ public class TunnelService
         }
     }
 
-    public CloudflareTunnel? GetTunnel(int port)
+    public Tunnel? GetTunnel(int port)
     {
         return _tunnels.GetValueOrDefault(port);
     }
 
-    public async Task<CloudflareTunnel> CreateTunnelAsync(int port, string? tunnelName = null, TunnelProvider provider = TunnelProvider.Cloudflare)
+    public async Task<Tunnel> CreateTunnelAsync(int port, string? tunnelName = null, TunnelProvider provider = TunnelProvider.Cloudflare)
     {
         if (_tunnels.ContainsKey(port))
         {
@@ -517,7 +517,7 @@ public class TunnelService
         // Generate a stable tunnel name if not provided
         var stableTunnelName = tunnelName ?? $"port-{port}-tunnel";
 
-        var tunnel = new CloudflareTunnel
+        var tunnel = new Tunnel
         {
             Port = port,
             Status = "Starting",
@@ -788,7 +788,7 @@ public class TunnelService
         _logger?.LogInformation($"[TunnelService] Saved {activeTunnels.Count} tunnels to settings");
     }
 
-    public async Task<CloudflareTunnel> RestartTunnelAsync(int port)
+    public async Task<Tunnel> RestartTunnelAsync(int port)
     {
         _logger?.LogInformation($"[TunnelService] Restarting tunnel for port {port}");
 
@@ -826,7 +826,7 @@ public class TunnelService
 
             _logger?.LogInformation($"[TunnelService] Creating new tunnel for port {port}");
             
-            var newTunnel = new CloudflareTunnel
+            var newTunnel = new Tunnel
             {
                 Port = port,
                 Status = "Starting",
@@ -914,9 +914,9 @@ public class TunnelService
         }
     }
 
-    public async Task<List<CloudflareTunnel>> ScanTunnelsAsync()
+    public async Task<List<Tunnel>> ScanTunnelsAsync()
     {
-        var scannedTunnels = new List<CloudflareTunnel>();
+        var scannedTunnels = new List<Tunnel>();
         
         // 获取保存的隧道信息用于恢复URL
         var savedTunnels = _settingsService.GetActiveTunnels();
@@ -974,7 +974,7 @@ public class TunnelService
                                         {
                                         }
                                         
-                                        var newTunnel = new CloudflareTunnel
+                                        var newTunnel = new Tunnel
                                         {
                                             Port = port,
                                             TunnelName = tunnelName,

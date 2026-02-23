@@ -1,0 +1,71 @@
+@using PortManager.Models
+@using PortManager.Services
+@inject TunnelService TunnelService
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="OnCancel">
+        <div class="modal-content provider-dialog" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 style="color: #2196F3;">选择隧道提供商</h3>
+                <button class="btn-close" @onclick="OnCancel">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="dialog-description">为端口 <strong>@Port</strong> 创建临时隧道</p>
+
+                <div class="provider-options">
+                    <label class="provider-option @(SelectedProvider == TunnelProvider.Cloudflare ? "selected" : "")">
+                        <input type="radio" name="provider" value="@TunnelProvider.Cloudflare"
+                               checked="@(SelectedProvider == TunnelProvider.Cloudflare)"
+                               @onchange="@(() => SelectedProvider = TunnelProvider.Cloudflare)" />
+                        <div class="provider-info">
+                            <div class="provider-name">Cloudflare</div>
+                            <div class="provider-desc">trycloudflare.com - 快速稳定</div>
+                        </div>
+                    </label>
+
+                    <label class="provider-option @(SelectedProvider == TunnelProvider.LocalTunnel ? "selected" : "")">
+                        <input type="radio" name="provider" value="@TunnelProvider.LocalTunnel"
+                               checked="@(SelectedProvider == TunnelProvider.LocalTunnel)"
+                               @onchange="@(() => SelectedProvider = TunnelProvider.LocalTunnel)" />
+                        <div class="provider-info">
+                            <div class="provider-name">LocalTunnel</div>
+                            <div class="provider-desc">loca.lt - 简单易用</div>
+                        </div>
+                    </label>
+                </div>
+
+                @if (SelectedProvider == TunnelProvider.LocalTunnel && !IsLocalTunnelInstalled)
+                {
+                    <div class="install-hint">
+                        <span class="icon">⚠</span>
+                        <span>LocalTunnel 未安装，请先运行: <code>npm install -g localtunnel</code></span>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="OnCancel">取消</button>
+                <button class="btn btn-primary" @onclick="HandleConfirm"
+                        disabled="@(SelectedProvider == TunnelProvider.LocalTunnel && !IsLocalTunnelInstalled)">
+                    <span class="icon">🌐</span>
+                    <text>创建隧道</text>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public int Port { get; set; }
+    [Parameter] public TunnelProvider SelectedProvider { get; set; } = TunnelProvider.Cloudflare;
+    [Parameter] public bool IsLocalTunnelInstalled { get; set; }
+    
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public EventCallback<TunnelProvider> OnConfirm { get; set; }
+
+    private async Task HandleConfirm()
+    {
+        await OnConfirm.InvokeAsync(SelectedProvider);
+    }
+}

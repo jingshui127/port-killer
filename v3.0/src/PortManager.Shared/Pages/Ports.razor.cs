@@ -1154,7 +1154,17 @@ public partial class Ports : IDisposable
         _showTunnelProviderDialog = false;
         var port = _pendingTunnelPort;
         var provider = _selectedTunnelProvider;
+        await CreateTunnelWithProviderAsync(port, provider);
+    }
 
+    private async Task HandleProviderSelected(TunnelProvider provider)
+    {
+        _selectedTunnelProvider = provider;
+        await ConfirmCreateTunnel();
+    }
+
+    private async Task CreateTunnelWithProviderAsync(int port, TunnelProvider provider)
+    {
         try
         {
             await TunnelService.CreateTunnelAsync(port, provider: provider);
