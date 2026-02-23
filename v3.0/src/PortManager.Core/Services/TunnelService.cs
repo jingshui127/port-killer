@@ -20,6 +20,8 @@ public class TunnelService
     private readonly NotificationService _notificationService;
     private CloudflaredStatus? _cachedCloudflaredStatus;
     private DateTime _lastCloudflaredCheck = DateTime.MinValue;
+    private bool _isInitialized = false;
+    private readonly object _initLock = new();
 
     public event EventHandler<CloudflaredUpdateProgress>? UpdateProgressChanged;
 
@@ -72,6 +74,17 @@ public class TunnelService
 
     public async Task InitializeAsync()
     {
+        // 确保只初始化一次
+        lock (_initLock)
+        {
+            if (_isInitialized)
+            {
+                _logger?.LogInformation("[TunnelService] Already initialized, skipping...");
+                return;
+            }
+            _isInitialized = true;
+        }
+        
         var savedTunnels = _settingsService.GetActiveTunnels();
         
         foreach (var savedTunnel in savedTunnels)
@@ -94,7 +107,9 @@ public class TunnelService
                     TunnelUrl = tunnelUrl,
                     ProcessId = existingProcess.Id,
                     StartTime = existingProcess.StartTime,
-                    TunnelName = savedTunnel.TunnelName
+                    TunnelName = savedTunnel.TunnelName,
+                    Provider = savedTunnel.Provider,
+                    Password = savedTunnel.Password
                 };
                 
                 _tunnels[tunnel.Port] = tunnel;
@@ -139,14 +154,30 @@ public class TunnelService
                         _processOutputAttached[savedTunnel.Port] = false;
                     }
                 }
-                
-                SaveActiveTunnels();
             }
             else
             {
-                _ = RestartTunnelOnStartupAsync(savedTunnel);
+                // 没有找到对应的进程，保留隧道信息但标记为停止状态
+                _logger?.LogInformation($"[TunnelService] No running process found for port {savedTunnel.Port}, keeping tunnel info for manual restart");
+                
+                var tunnel = new CloudflareTunnel
+                {
+                    Port = savedTunnel.Port,
+                    Status = "Stopped",
+                    TunnelUrl = savedTunnel.TunnelUrl,
+                    ProcessId = 0,
+                    StartTime = savedTunnel.StartTime,
+                    TunnelName = savedTunnel.TunnelName,
+                    Provider = savedTunnel.Provider,
+                    Password = savedTunnel.Password
+                };
+                
+                _tunnels[tunnel.Port] = tunnel;
+                _tunnelUrls[tunnel.Port] = savedTunnel.TunnelUrl;
             }
         }
+        
+        SaveActiveTunnels();
         
         _ = CleanupOrphanedTunnelsAsync();
     }
@@ -166,15 +197,28 @@ public class TunnelService
                 Status = "Starting",
                 StartTime = DateTime.Now,
                 TunnelName = savedTunnel.TunnelName ?? $"port-{savedTunnel.Port}-tunnel",
-                TunnelUrl = originalUrl // 保留原URL
+                TunnelUrl = originalUrl, // 保留原URL
+                Provider = savedTunnel.Provider // 保留原提供商类型
             };
 
             _tunnels[savedTunnel.Port] = newTunnel;
             _tunnelUrls[savedTunnel.Port] = originalUrl; // 同时更新URL字典
             SaveActiveTunnels();
 
-            var cloudflaredProcess = await StartCloudflaredAsync(savedTunnel.Port, newTunnel.TunnelName);
-            newTunnel.ProcessId = cloudflaredProcess.Id;
+            // 根据提供商类型选择启动方法
+            Process tunnelProcess;
+            if (savedTunnel.Provider == TunnelProvider.LocalTunnel)
+            {
+                tunnelProcess = await StartLocalTunnelAsync(savedTunnel.Port, newTunnel.TunnelName);
+                // LocalTunnel 启动时获取密码
+                newTunnel.Password = await GetLocalTunnelPasswordAsync();
+            }
+            else
+            {
+                tunnelProcess = await StartCloudflaredAsync(savedTunnel.Port, newTunnel.TunnelName);
+            }
+            
+            newTunnel.ProcessId = tunnelProcess.Id;
             newTunnel.Status = "Active";
             
             _tunnelErrors[savedTunnel.Port] = string.Empty;
@@ -205,11 +249,11 @@ public class TunnelService
                     return;
                 }
                 
-                if (cloudflaredProcess.HasExited)
+                if (tunnelProcess.HasExited)
                 {
-                    _logger?.LogError($"[TunnelService] Cloudflared process exited with code {cloudflaredProcess.ExitCode}");
+                    _logger?.LogError($"[TunnelService] Tunnel process exited with code {tunnelProcess.ExitCode}");
                     newTunnel.Status = "Error";
-                    newTunnel.LastError = $"Process exited with code {cloudflaredProcess.ExitCode}";
+                    newTunnel.LastError = $"Process exited with code {tunnelProcess.ExitCode}";
                     // 保留原URL
                     newTunnel.TunnelUrl = originalUrl;
                     _tunnelUrls[savedTunnel.Port] = originalUrl;
@@ -299,29 +343,49 @@ public class TunnelService
 
     private Process? GetProcessForPortWindows(int port)
     {
+        // 首先检查已知的进程
         foreach (var kvp in _tunnelProcesses)
         {
             var process = kvp.Value;
             if (!process.HasExited)
             {
                 var commandLine = GetProcessCommandLine(process.Id);
-                if (commandLine != null && commandLine.Contains($"--url localhost:{port}"))
+                if (commandLine != null && 
+                    (commandLine.Contains($"--url localhost:{port}") || 
+                     commandLine.Contains($"--port {port}")))
                 {
                     return process;
                 }
             }
         }
         
-        var allCloudflaredProcesses = Process.GetProcessesByName("cloudflared");
+        // 查找 Cloudflare 进程
+        var foundProcess = FindProcessByCommandLine("cloudflared", $"--url localhost:{port}");
+        if (foundProcess != null) return foundProcess;
+        
+        // 查找 LocalTunnel 进程 (lt.exe)
+        foundProcess = FindProcessByCommandLine("lt", $"--port {port}");
+        if (foundProcess != null) return foundProcess;
+        
+        // 查找 npx 启动的 LocalTunnel
+        foundProcess = FindProcessByCommandLine("node", $"localtunnel --port {port}");
+        if (foundProcess != null) return foundProcess;
+        
+        return null;
+    }
+    
+    private Process? FindProcessByCommandLine(string processName, string commandLinePattern)
+    {
+        var processes = Process.GetProcessesByName(processName);
         Process? foundProcess = null;
         var processesToDispose = new List<Process>();
         
-        foreach (var process in allCloudflaredProcesses)
+        foreach (var process in processes)
         {
             try
             {
                 var commandLine = GetProcessCommandLine(process.Id);
-                if (commandLine != null && commandLine.Contains($"--url localhost:{port}"))
+                if (commandLine != null && commandLine.Contains(commandLinePattern))
                 {
                     foundProcess = process;
                 }
@@ -352,6 +416,7 @@ public class TunnelService
 
     private Process? GetProcessForPortLinux(int port)
     {
+        // 首先检查已知的进程
         foreach (var kvp in _tunnelProcesses)
         {
             var process = kvp.Value;
@@ -361,44 +426,25 @@ public class TunnelService
             }
         }
         
-        var allCloudflaredProcesses = Process.GetProcessesByName("cloudflared");
-        Process? foundProcess = null;
-        var processesToDispose = new List<Process>();
+        // 查找 Cloudflare 进程
+        var foundProcess = FindProcessByCommandLine("cloudflared", $"--url localhost:{port}");
+        if (foundProcess != null) return foundProcess;
         
-        foreach (var process in allCloudflaredProcesses)
-        {
-            try
-            {
-                var commandLine = GetProcessCommandLine(process.Id);
-                if (commandLine != null && commandLine.Contains($"--url localhost:{port}"))
-                {
-                    foundProcess = process;
-                }
-                else
-                {
-                    processesToDispose.Add(process);
-                }
-            }
-            catch
-            {
-                processesToDispose.Add(process);
-            }
-        }
+        // 查找 LocalTunnel 进程 (lt)
+        foundProcess = FindProcessByCommandLine("lt", $"--port {port}");
+        if (foundProcess != null) return foundProcess;
         
-        foreach (var p in processesToDispose)
-        {
-            try
-            {
-                p.Dispose();
-            }
-            catch
-            {
-            }
-        }
+        // 查找 npx/node 启动的 LocalTunnel
+        foundProcess = FindProcessByCommandLine("node", $"localtunnel --port {port}");
+        if (foundProcess != null) return foundProcess;
         
-        return foundProcess;
+        // 查找 npx 进程
+        foundProcess = FindProcessByCommandLine("npx", $"localtunnel --port {port}");
+        if (foundProcess != null) return foundProcess;
+        
+        return null;
     }
-
+    
     public string? GetProcessCommandLine(int processId)
     {
 #if WINDOWS
@@ -461,7 +507,7 @@ public class TunnelService
         return _tunnels.GetValueOrDefault(port);
     }
 
-    public async Task<CloudflareTunnel> CreateTunnelAsync(int port, string? tunnelName = null)
+    public async Task<CloudflareTunnel> CreateTunnelAsync(int port, string? tunnelName = null, TunnelProvider provider = TunnelProvider.Cloudflare)
     {
         if (_tunnels.ContainsKey(port))
         {
@@ -477,7 +523,9 @@ public class TunnelService
             Status = "Starting",
             StartTime = DateTime.Now,
             TunnelName = stableTunnelName,
-            TunnelUrl = string.Empty
+            TunnelUrl = string.Empty,
+            Provider = provider,
+            Password = provider == TunnelProvider.LocalTunnel ? await GetLocalTunnelPasswordAsync() : null
         };
 
         _tunnels[port] = tunnel;
@@ -485,12 +533,21 @@ public class TunnelService
 
         try
         {
-            var cloudflaredProcess = await StartCloudflaredAsync(port, stableTunnelName);
-            tunnel.ProcessId = cloudflaredProcess.Id;
-            tunnel.Status = "Active";
-            
+            // 先清空之前的 URL 和错误信息
             _tunnelUrls[port] = string.Empty;
             _tunnelErrors[port] = string.Empty;
+            
+            Process tunnelProcess;
+            if (provider == TunnelProvider.LocalTunnel)
+            {
+                tunnelProcess = await StartLocalTunnelAsync(port, stableTunnelName);
+            }
+            else
+            {
+                tunnelProcess = await StartCloudflaredAsync(port, stableTunnelName);
+            }
+            tunnel.ProcessId = tunnelProcess.Id;
+            tunnel.Status = "Active";
             
             var timeout = TimeSpan.FromSeconds(30);
             var startTime = DateTime.Now;
@@ -507,12 +564,24 @@ public class TunnelService
                 
                 if (!string.IsNullOrEmpty(_tunnelErrors[port]))
                 {
-                    throw new InvalidOperationException($"Cloudflared error: {_tunnelErrors[port]}");
+                    var errorMsg = _tunnelErrors[port];
+                    // 检测特定的 Cloudflare 服务错误
+                    if (errorMsg.Contains("Worker threw exception", StringComparison.OrdinalIgnoreCase) ||
+                        errorMsg.Contains("unmarshaling", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("Cloudflare 临时隧道服务暂时不可用，请稍后重试。错误：" + errorMsg);
+                    }
+                    // 检测 LocalTunnel 错误
+                    if (provider == TunnelProvider.LocalTunnel)
+                    {
+                        throw new InvalidOperationException($"LocalTunnel error: {errorMsg}");
+                    }
+                    throw new InvalidOperationException($"Tunnel error: {errorMsg}");
                 }
                 
-                if (cloudflaredProcess.HasExited)
+                if (tunnelProcess.HasExited)
                 {
-                    throw new InvalidOperationException($"Cloudflared process exited with code {cloudflaredProcess.ExitCode}");
+                    throw new InvalidOperationException($"Tunnel process exited with code {tunnelProcess.ExitCode}");
                 }
                 
                 await Task.Delay(500);
@@ -614,26 +683,74 @@ public class TunnelService
 
     public void StopTunnel(int port)
     {
+        // 如果隧道不存在，直接返回（可能已经被删除）
         if (!_tunnels.ContainsKey(port))
         {
-            throw new InvalidOperationException($"No tunnel found for port {port}");
+            _logger?.LogWarning($"[TunnelService] No tunnel found for port {port}, may have been already removed");
+            return;
         }
 
+        // 首先尝试从字典中移除并终止进程
         if (_tunnelProcesses.TryRemove(port, out var process))
         {
             try
             {
-                process.Kill(entireProcessTree: true);
-                process.WaitForExit(5000);
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit(5000);
+                }
             }
             catch (Exception ex)
             {
                 _logger?.LogError($"Error stopping tunnel process: {ex.Message}");
             }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+
+        // 额外检查：终止所有该端口的 cloudflared 进程（处理孤儿进程）
+        try
+        {
+            var allCloudflaredProcesses = Process.GetProcessesByName("cloudflared");
+            foreach (var cloudflaredProcess in allCloudflaredProcesses)
+            {
+                try
+                {
+                    if (OperatingSystem.IsWindows())
+                    {
+                        var commandLine = GetProcessCommandLine(cloudflaredProcess.Id);
+                        if (commandLine != null && commandLine.Contains($"--url localhost:{port}"))
+                        {
+                            if (!cloudflaredProcess.HasExited)
+                            {
+                                _logger?.LogInformation($"[TunnelService] Killing orphaned cloudflared process for port {port} (PID: {cloudflaredProcess.Id})");
+                                cloudflaredProcess.Kill(entireProcessTree: true);
+                                cloudflaredProcess.WaitForExit(3000);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning($"[TunnelService] Error checking/killing cloudflared process: {ex.Message}");
+                }
+                finally
+                {
+                    cloudflaredProcess.Dispose();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError($"[TunnelService] Error cleaning up cloudflared processes: {ex.Message}");
         }
 
         _tunnelUrls.TryRemove(port, out _);
         _tunnelErrors.TryRemove(port, out _);
+        _processOutputAttached.TryRemove(port, out _);
 
         _tunnels.TryRemove(port, out _);
         SaveActiveTunnels();
@@ -1360,15 +1477,50 @@ public class TunnelService
         if (match.Success)
         {
             var url = match.Value;
-            var isNewUrl = !_tunnelUrls.ContainsKey(port) || string.IsNullOrEmpty(_tunnelUrls[port]);
+            
+            // 检查进程是否还在运行，如果进程已退出或更换，则允许更新 URL
+            var processChanged = false;
+            if (_tunnelProcesses.TryGetValue(port, out var process))
+            {
+                if (process.HasExited)
+                {
+                    processChanged = true;
+                }
+            }
+            else
+            {
+                processChanged = true;
+            }
+            
+            // 如果进程没有变化且已有有效 URL，则不覆盖
+            if (!processChanged && 
+                _tunnels.TryGetValue(port, out var tunnel) && 
+                !string.IsNullOrEmpty(tunnel.TunnelUrl) && 
+                tunnel.TunnelUrl != "Unknown" &&
+                tunnel.TunnelUrl.Contains("trycloudflare.com"))
+            {
+                // 已有有效 URL 且进程未变化，不覆盖
+                _logger?.LogDebug($"[TunnelService] Existing valid URL found for port {port}, not overwriting with new URL: {url}");
+                return;
+            }
+            
+            // 如果 URL 发生变化，记录日志
+            var oldUrl = _tunnelUrls.GetValueOrDefault(port, string.Empty);
+            var isNewUrl = string.IsNullOrEmpty(oldUrl) || oldUrl != url;
+            
+            if (isNewUrl && !string.IsNullOrEmpty(oldUrl))
+            {
+                _logger?.LogInformation($"[TunnelService] URL changed for port {port}: {oldUrl} -> {url}");
+            }
+            
             _tunnelUrls[port] = url;
             
-            if (_tunnels.TryGetValue(port, out var tunnel))
+            if (_tunnels.TryGetValue(port, out tunnel))
             {
                 tunnel.TunnelUrl = url;
                 SaveActiveTunnels();
                 
-                // 新创建的隧道发送通知
+                // 新创建的隧道或 URL 发生变化时发送通知
                 if (isNewUrl && _notificationService != null)
                 {
                     _notificationService.NotifyTunnelCreated(port, url);
@@ -1377,11 +1529,15 @@ public class TunnelService
         }
 
         var lowerLine = line.ToLower();
-        if (lowerLine.Contains("error") || 
-            lowerLine.Contains("failed") || 
+        if (lowerLine.Contains("error") ||
+            lowerLine.Contains("err ") ||
+            lowerLine.Contains("fatal") ||
+            lowerLine.Contains("failed") ||
             lowerLine.Contains("unable to") ||
             lowerLine.Contains("permission denied") ||
-            lowerLine.Contains("could not"))
+            lowerLine.Contains("could not") ||
+            lowerLine.Contains("worker threw exception") ||
+            lowerLine.Contains("unmarshaling"))
         {
             _tunnelErrors[port] = line;
         }
@@ -1434,5 +1590,301 @@ public class TunnelService
             }
         });
     }
+
+    #region LocalTunnel Support
+
+    private static readonly string[] LocalTunnelPaths = {
+        @"C:\Program Files\nodejs\lt.cmd",
+        @"C:\Program Files (x86)\nodejs\lt.cmd",
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"npm\lt.cmd"),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"npm\lt.cmd"),
+        @"lt.cmd",
+        @"lt",
+        @"/usr/local/bin/lt",
+        @"/usr/bin/lt",
+        @"/usr/local/bin/localtunnel",
+        @"localtunnel"
+    };
+
+    /// <summary>
+    /// 查找 LocalTunnel 可执行文件路径
+    /// </summary>
+    public string? GetLocalTunnelPath()
+    {
+        // 首先检查缓存的状态
+        if (_cachedCloudflaredStatus != null && DateTime.Now - _lastCloudflaredCheck < TimeSpan.FromMinutes(5))
+        {
+            // 复用检查逻辑，但检查的是 lt 命令
+        }
+
+        foreach (var path in LocalTunnelPaths)
+        {
+            try
+            {
+                if (Path.IsPathRooted(path))
+                {
+                    if (File.Exists(path))
+                    {
+                        _logger?.LogInformation($"[TunnelService] Found localtunnel at: {path}");
+                        return path;
+                    }
+                }
+                else
+                {
+                    // 尝试在 PATH 中查找
+                    var process = new Process
+                    {
+                        StartInfo = new ProcessStartInfo
+                        {
+                            FileName = OperatingSystem.IsWindows() ? "where" : "which",
+                            Arguments = path,
+                            RedirectStandardOutput = true,
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        }
+                    };
+
+                    process.Start();
+                    var output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit(3000);
+
+                    if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+                    {
+                        var foundPath = output.Trim().Split('\n')[0].Trim();
+                        if (File.Exists(foundPath))
+                        {
+                            _logger?.LogInformation($"[TunnelService] Found localtunnel in PATH: {foundPath}");
+                            return foundPath;
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // 最后尝试使用 npx
+        try
+        {
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = OperatingSystem.IsWindows() ? "where" : "which",
+                    Arguments = "npx",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(3000);
+
+            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            {
+                _logger?.LogInformation($"[TunnelService] npx found, will use npx localtunnel");
+                return "npx";
+            }
+        }
+        catch { }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 检查 LocalTunnel 是否已安装
+    /// </summary>
+    public bool IsLocalTunnelInstalled()
+    {
+        return GetLocalTunnelPath() != null;
+    }
+
+    /// <summary>
+    /// 启动 LocalTunnel 进程
+    /// </summary>
+    private async Task<Process> StartLocalTunnelAsync(int port, string? tunnelName)
+    {
+        var ltPath = GetLocalTunnelPath();
+        if (ltPath == null)
+        {
+            throw new InvalidOperationException("LocalTunnel is not installed. Please install it with: npm install -g localtunnel");
+        }
+
+        string arguments;
+        string fileName;
+
+        // LocalTunnel 不支持自定义密码，密码由服务器动态生成
+        if (ltPath == "npx")
+        {
+            fileName = "npx";
+            arguments = $"localtunnel --port {port}";
+        }
+        else
+        {
+            fileName = ltPath;
+            arguments = $"--port {port}";
+        }
+
+        // 如果有指定子域名，添加 --subdomain 参数
+        if (!string.IsNullOrEmpty(tunnelName) && tunnelName != $"port-{port}-tunnel")
+        {
+            var subdomain = tunnelName.Replace($"port-{port}-", "").Replace("-tunnel", "");
+            if (!string.IsNullOrEmpty(subdomain))
+            {
+                arguments += $" --subdomain {subdomain}";
+            }
+        }
+
+        _logger?.LogInformation($"[TunnelService] Starting localtunnel with arguments: {arguments}");
+        _logger?.LogInformation($"[TunnelService] LocalTunnel path: {fileName}");
+
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(ltPath) ?? Environment.CurrentDirectory
+            }
+        };
+
+        process.OutputDataReceived += (sender, e) =>
+        {
+            if (!string.IsNullOrEmpty(e.Data))
+            {
+                _logger?.LogInformation($"[TunnelService] LocalTunnel Output: {e.Data}");
+                ParseLocalTunnelOutput(port, e.Data);
+            }
+        };
+
+        process.ErrorDataReceived += (sender, e) =>
+        {
+            if (!string.IsNullOrEmpty(e.Data))
+            {
+                var lowerLine = e.Data.ToLower();
+                if (lowerLine.Contains("err") ||
+                    lowerLine.Contains("error") ||
+                    lowerLine.Contains("fatal") ||
+                    lowerLine.Contains("failed"))
+                {
+                    _logger?.LogError($"[TunnelService] LocalTunnel Error: {e.Data}");
+                }
+                else
+                {
+                    _logger?.LogInformation($"[TunnelService] LocalTunnel: {e.Data}");
+                }
+                ParseLocalTunnelOutput(port, e.Data);
+            }
+        };
+
+        try
+        {
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            _tunnelProcesses[port] = process;
+
+            await Task.Delay(1000);
+
+            if (process.HasExited)
+            {
+                throw new InvalidOperationException($"LocalTunnel process exited with code {process.ExitCode}");
+            }
+
+            _logger?.LogInformation($"[TunnelService] LocalTunnel process started with ID: {process.Id}");
+            return process;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError($"[TunnelService] Failed to start LocalTunnel: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 解析 LocalTunnel 输出，提取 URL
+    /// </summary>
+    private void ParseLocalTunnelOutput(int port, string line)
+    {
+        _logger?.LogDebug($"[TunnelService] Parsing LocalTunnel output for port {port}: {line}");
+        
+        // LocalTunnel URL 格式: https://something.loca.lt
+        // 也可能输出: your url is: https://something.loca.lt
+        // 或者: url: https://something.loca.lt
+        var urlPattern = @"https://[a-z0-9-]+\.loca\.lt";
+        var match = Regex.Match(line, urlPattern, RegexOptions.IgnoreCase);
+
+        if (match.Success)
+        {
+            var url = match.Value;
+            _logger?.LogInformation($"[TunnelService] LocalTunnel URL found for port {port}: {url}");
+
+            var oldUrl = _tunnelUrls.GetValueOrDefault(port, string.Empty);
+            var isNewUrl = string.IsNullOrEmpty(oldUrl) || oldUrl != url;
+
+            _tunnelUrls[port] = url;
+            _logger?.LogDebug($"[TunnelService] Updated _tunnelUrls[{port}] = {url}");
+
+            if (_tunnels.TryGetValue(port, out var tunnel))
+            {
+                tunnel.TunnelUrl = url;
+                SaveActiveTunnels();
+                _logger?.LogInformation($"[TunnelService] Saved LocalTunnel URL for port {port}: {url}");
+
+                if (isNewUrl && _notificationService != null)
+                {
+                    _notificationService.NotifyTunnelCreated(port, url);
+                }
+            }
+            else
+            {
+                _logger?.LogWarning($"[TunnelService] Tunnel not found in _tunnels for port {port}");
+            }
+        }
+
+        // 检测错误
+        var lowerLine = line.ToLower();
+        if (lowerLine.Contains("error") ||
+            lowerLine.Contains("err ") ||
+            lowerLine.Contains("failed") ||
+            lowerLine.Contains("unable to") ||
+            lowerLine.Contains("could not") ||
+            lowerLine.Contains("econnrefused") ||
+            lowerLine.Contains("tunnel failed") ||
+            lowerLine.Contains("could not connect"))
+        {
+            _tunnelErrors[port] = line;
+            _logger?.LogError($"[TunnelService] LocalTunnel error for port {port}: {line}");
+        }
+    }
+
+    /// <summary>
+    /// 获取 LocalTunnel 密码（当前机器的公网 IP）
+    /// </summary>
+    private async Task<string?> GetLocalTunnelPasswordAsync()
+    {
+        try
+        {
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(10);
+            var password = await httpClient.GetStringAsync("https://loca.lt/mytunnelpassword");
+            password = password.Trim();
+            _logger?.LogInformation($"[TunnelService] LocalTunnel password retrieved: {password}");
+            return password;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError($"[TunnelService] Failed to get LocalTunnel password: {ex.Message}");
+            return "(获取失败，请访问链接查看)";
+        }
+    }
+
+    #endregion
 }
 

@@ -1,0 +1,332 @@
+@using PortManager.Models
+@using PortManager.Services
+@inject TunnelService TunnelService
+
+<MCard Elevation="2" Class="@GetCardClass()" Hover Style="width: 100%; display: flex; flex-direction: column;">
+    <!-- 标题栏：端口号 + 名称（根据提供商显示不同颜色） -->
+    <MCardTitle Class="py-2 px-3 d-flex align-center" Style="@GetHeaderStyle()">
+        <div class="d-flex align-center flex-grow-1">
+            <!-- 端口号大显示 -->
+            <div class="d-flex align-center justify-center rounded mr-2" style="min-width: 48px; height: 36px; background: rgba(255,255,255,0.2);">
+                <span class="text-h6 font-weight-bold" style="color: white;">@Tunnel.Port</span>
+            </div>
+            <!-- 名称区域 -->
+            <div class="flex-grow-1">
+                @if (_isEditingName)
+                {
+                    <div class="d-flex align-center gap-1">
+                        <MTextField TValue="string"
+                                    Dense
+                                    HideDetails="true"
+                                    @bind-Value="_editName"
+                                    Placeholder="输入名称"
+                                    Style="background: rgba(255,255,255,0.9); border-radius: 4px;"
+                                    Class="mb-0 mt-0"
+                                    @onkeyup="HandleNameKeyUp"
+                                    AutoFocus />
+                        <MButton Icon XSmall Color="white" OnClick="SaveName" Title="保存">
+                            <MIcon XSmall>mdi-check</MIcon>
+                        </MButton>
+                        <MButton Icon XSmall Color="white" OnClick="CancelEditName" Title="取消">
+                            <MIcon XSmall>mdi-close</MIcon>
+                        </MButton>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex align-center">
+                        <span class="text-subtitle-2 font-weight-medium" style="color: white;">@GetDisplayName()</span>
+                        <MButton Icon XSmall Color="white" OnClick="StartEditName" Title="编辑名称" Class="ml-1">
+                            <MIcon XSmall>mdi-pencil</MIcon>
+                        </MButton>
+                    </div>
+                }
+            </div>
+        </div>
+        <MChip XSmall Color="@(GetStatusColor())" TextColor="white">
+            @(GetStatusText())
+        </MChip>
+    </MCardTitle>
+
+    <MCardText Class="pa-3" Style="flex: 1;">
+        <!-- 提供商信息 -->
+        <div class="d-flex align-center gap-2 mb-2">
+            <MChip XSmall Outlined Color="@GetProviderColor()" Class="mr-1">
+                <MIcon XSmall Left>@GetProviderIcon()</MIcon>
+                @GetProviderName()
+            </MChip>
+            <MSpacer />
+            <span class="text-caption text--disabled">PID: @Tunnel.ProcessId</span>
+        </div>
+
+        <!-- LocalTunnel 密码 -->
+        @if (Tunnel.Provider == TunnelProvider.LocalTunnel && !string.IsNullOrEmpty(Tunnel.Password))
+        {
+            <div class="d-flex align-center gap-2 mb-1 pa-1 rounded" style="background: rgba(255,193,7,0.1); border: 1px dashed #ffc107;">
+                <MIcon XSmall Color="warning">mdi-lock</MIcon>
+                <span class="text-caption warning--text font-weight-medium" style="flex: 1;">密码: @Tunnel.Password</span>
+                <MButton Icon XSmall OnClick="@(() => CopyToClipboard(Tunnel.Password))" Title="复制密码">
+                    <MIcon XSmall>mdi-content-copy</MIcon>
+                </MButton>
+            </div>
+        }
+
+        <!-- 链接区域 -->
+        <div class="d-flex align-center gap-2 pa-2 rounded mb-1" style="background: var(--m-surface-variant-color); overflow: hidden;">
+            @if (!string.IsNullOrEmpty(Tunnel.TunnelUrl) && Tunnel.TunnelUrl != "Unknown")
+            {
+                <MIcon XSmall Color="primary">mdi-link</MIcon>
+                <a href="@Tunnel.TunnelUrl" target="_blank" class="text-caption primary--text text-decoration-none" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="@Tunnel.TunnelUrl">@Tunnel.TunnelUrl</a>
+                <MButton Icon XSmall OnClick="@(() => CopyToClipboard(Tunnel.TunnelUrl))" Title="复制">
+                    <MIcon XSmall>mdi-content-copy</MIcon>
+                </MButton>
+            }
+            else if (Tunnel.Status == "Starting")
+            {
+                <MIcon XSmall Color="warning">mdi-timer-sand</MIcon>
+                <span class="text-caption text--secondary flex-grow-1">获取链接中...</span>
+                <MProgressCircular Indeterminate Size="12" Color="primary" />
+            }
+            else
+            {
+                <MIcon XSmall Color="grey">mdi-link-off</MIcon>
+                <span class="text-caption text--secondary flex-grow-1">暂无链接</span>
+            }
+        </div>
+        
+        <!-- LocalTunnel 密码提示 -->
+        @if (Tunnel.Provider == TunnelProvider.LocalTunnel && !string.IsNullOrEmpty(Tunnel.TunnelUrl) && Tunnel.TunnelUrl != "Unknown")
+        {
+            <div class="d-flex align-center gap-1 mb-1">
+                <MIcon XXSmall Color="warning">mdi-lock-outline</MIcon>
+                <span class="text-caption warning--text">访问后查看页面密码</span>
+            </div>
+        }
+
+        <!-- 状态检测 -->
+        @if (!string.IsNullOrEmpty(Tunnel.TunnelUrl) && Tunnel.TunnelUrl != "Unknown")
+        {
+            <div class="d-flex align-center gap-2 mb-1">
+                @switch (Tunnel.LinkStatus)
+                {
+                    case "Checking":
+                        <MProgressCircular Indeterminate Size="12" Color="warning" />
+                        <span class="text-caption text--secondary">检测中</span>
+                        break;
+                    case "Online":
+                        <MIcon XSmall Color="success">mdi-check-circle</MIcon>
+                        <span class="text-caption success--text">链接正常</span>
+                        break;
+                    case "Offline":
+                        <MIcon XSmall Color="error">mdi-close-circle</MIcon>
+                        <span class="text-caption error--text">无法访问</span>
+                        break;
+                    case "Error":
+                        <MIcon XSmall Color="warning">mdi-alert-circle</MIcon>
+                        <span class="text-caption warning--text">检测失败</span>
+                        break;
+                    default:
+                        <MIcon XSmall Color="grey">mdi-help-circle</MIcon>
+                        <span class="text-caption text--secondary">未检测</span>
+                        break;
+                }
+                @if (Tunnel.LastChecked.HasValue && Tunnel.LinkStatus != "Unknown" && Tunnel.LinkStatus != "Checking")
+                {
+                    <span class="text-caption text--disabled">(@GetTimeAgo(Tunnel.LastChecked.Value))</span>
+                }
+                <MSpacer />
+                @if (Tunnel.LinkStatus != "Checking")
+                {
+                    <MButton XSmall Text Color="primary" OnClick="@(() => OnCheckLinkStatus.InvokeAsync(Tunnel))">
+                        <MIcon XSmall Left>mdi-refresh</MIcon>
+                        检测
+                    </MButton>
+                }
+            </div>
+        }
+
+        <!-- 运行信息 -->
+        <div class="d-flex align-center gap-3 mb-1">
+            <div class="d-flex align-center gap-1">
+                <MIcon XXSmall Color="grey">mdi-clock-outline</MIcon>
+                <span class="text-caption text--secondary">@Tunnel.Uptime</span>
+            </div>
+        </div>
+
+        <!-- 错误信息 -->
+        @if (!string.IsNullOrEmpty(Tunnel.LastError))
+        {
+            <MAlert Type="@AlertTypes.Error" Dense Class="mb-0 mt-1" Outlined>
+                <div class="d-flex align-center">
+                    <MIcon XSmall Left>mdi-alert</MIcon>
+                    <span class="text-caption text-truncate">@Tunnel.LastError</span>
+                </div>
+            </MAlert>
+        }
+    </MCardText>
+
+    <MDivider />
+
+    <!-- 操作按钮 -->
+    <MCardActions Class="justify-center pa-2" Style="background: var(--m-surface-variant-color); flex-shrink: 0;">
+        @if (Tunnel.Status == "Stopped")
+        {
+            <MButton Icon Small Color="success" OnClick="@(() => OnRestart.InvokeAsync(Tunnel))" Title="启动">
+                <MIcon Small>mdi-play</MIcon>
+            </MButton>
+            <MButton Icon Small Color="error" OnClick="@(() => OnStop.InvokeAsync(Tunnel.Port))" Title="删除">
+                <MIcon Small>mdi-delete</MIcon>
+            </MButton>
+        }
+        else
+        {
+            <MButton Icon Small Color="warning" OnClick="@(() => OnRestart.InvokeAsync(Tunnel))" Title="重新创建">
+                <MIcon Small>mdi-refresh</MIcon>
+            </MButton>
+            <MButton Icon Small Color="error" OnClick="@(() => OnStop.InvokeAsync(Tunnel.Port))" Title="停止">
+                <MIcon Small>mdi-stop</MIcon>
+            </MButton>
+        }
+    </MCardActions>
+</MCard>
+
+@code {
+    [Parameter] public CloudflareTunnel Tunnel { get; set; } = null!;
+    [Parameter] public bool IsLightTheme { get; set; }
+
+    [Parameter] public EventCallback<CloudflareTunnel> OnCheckLinkStatus { get; set; }
+    [Parameter] public EventCallback<CloudflareTunnel> OnRestart { get; set; }
+    [Parameter] public EventCallback<int> OnStop { get; set; }
+    [Parameter] public EventCallback<string> OnCopy { get; set; }
+    [Parameter] public EventCallback<(int Port, string NewName)> OnNameChanged { get; set; }
+
+    private bool _isEditingName = false;
+    private string _editName = string.Empty;
+
+    private string GetDisplayName()
+    {
+        if (string.IsNullOrEmpty(Tunnel.TunnelName))
+            return $"隧道 {Tunnel.Port}";
+        if (Tunnel.TunnelName == $"port-{Tunnel.Port}-tunnel")
+            return $"隧道 {Tunnel.Port}";
+        return Tunnel.TunnelName;
+    }
+
+    private void StartEditName()
+    {
+        _editName = Tunnel.TunnelName == $"port-{Tunnel.Port}-tunnel" ? string.Empty : Tunnel.TunnelName;
+        _isEditingName = true;
+    }
+
+    private void CancelEditName()
+    {
+        _isEditingName = false;
+        _editName = string.Empty;
+    }
+
+    private async Task SaveName()
+    {
+        var newName = string.IsNullOrWhiteSpace(_editName) ? $"port-{Tunnel.Port}-tunnel" : _editName.Trim();
+        if (newName != Tunnel.TunnelName)
+        {
+            await OnNameChanged.InvokeAsync((Tunnel.Port, newName));
+        }
+        _isEditingName = false;
+    }
+
+    private async Task HandleNameKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SaveName();
+        }
+        else if (e.Key == "Escape")
+        {
+            CancelEditName();
+        }
+    }
+
+    private string GetCardClass()
+    {
+        var baseClass = "tunnel-card transition-swing";
+        if (IsLightTheme)
+        {
+            baseClass += " light";
+        }
+        return baseClass;
+    }
+
+    private string GetStatusColor()
+    {
+        return Tunnel.Status switch
+        {
+            "Active" => "success",
+            "Stopped" => "grey",
+            _ => "error"
+        };
+    }
+
+    private string GetStatusText()
+    {
+        return Tunnel.Status switch
+        {
+            "Active" => "活动",
+            "Stopped" => "已停止",
+            _ => "错误"
+        };
+    }
+
+    private string GetProviderColor()
+    {
+        return Tunnel.Provider switch
+        {
+            TunnelProvider.Cloudflare => "primary",
+            TunnelProvider.LocalTunnel => "success",
+            _ => "grey"
+        };
+    }
+
+    private string GetProviderIcon()
+    {
+        return Tunnel.Provider switch
+        {
+            TunnelProvider.Cloudflare => "mdi-cloud",
+            TunnelProvider.LocalTunnel => "mdi-tunnel",
+            _ => "mdi-help-circle"
+        };
+    }
+
+    private string GetProviderName()
+    {
+        return Tunnel.Provider.GetDisplayName();
+    }
+
+    private string GetHeaderStyle()
+    {
+        return Tunnel.Provider switch
+        {
+            TunnelProvider.Cloudflare => "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;",
+            TunnelProvider.LocalTunnel => "background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white;",
+            _ => "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;"
+        };
+    }
+
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var timeSpan = DateTime.Now - dateTime;
+
+        if (timeSpan.TotalMinutes < 1)
+            return "刚刚";
+        if (timeSpan.TotalHours < 1)
+            return $"{(int)timeSpan.TotalMinutes}分钟前";
+        if (timeSpan.TotalDays < 1)
+            return $"{(int)timeSpan.TotalHours}小时前";
+
+        return $"{(int)timeSpan.TotalDays}天前";
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        await OnCopy.InvokeAsync(text);
+    }
+}

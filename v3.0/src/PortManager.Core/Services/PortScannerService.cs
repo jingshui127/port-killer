@@ -65,13 +65,16 @@ public class PortScannerService
             
             try
             {
-#if WINDOWS
-                // Windows: 使用 IPGlobalProperties 获取端口信息
-                await RefreshPortsWindowsAsync(newPorts, processedPorts, currentPorts);
-#else
-                // Linux: 使用 ss 命令获取端口信息
-                await RefreshPortsLinuxAsync(newPorts, processedPorts, currentPorts);
-#endif
+                if (OperatingSystem.IsWindows())
+                {
+                    // Windows: 使用 IPGlobalProperties 获取端口信息
+                    await RefreshPortsWindowsAsync(newPorts, processedPorts, currentPorts);
+                }
+                else
+                {
+                    // Linux: 使用 ss 命令获取端口信息
+                    await RefreshPortsLinuxAsync(newPorts, processedPorts, currentPorts);
+                }
                 
                 // 检测停止的端口（收藏或监控的端口）
                 foreach (var oldPort in currentPorts.Values)
@@ -107,8 +110,7 @@ public class PortScannerService
                         }
                         
                         // Linux: 如果没有防火墙信息，根据地址判断方向
-#if !WINDOWS
-                        if (port.FirewallInfo == null)
+                        if (!OperatingSystem.IsWindows() && port.FirewallInfo == null)
                         {
                             var direction = FirewallService.GetDirectionFromAddress(port.Address);
                             port.FirewallInfo = new PortFirewallInfo
@@ -117,7 +119,7 @@ public class PortScannerService
                                 AllowOutbound = direction == PortAccessDirection.Outbound || direction == PortAccessDirection.Bidirectional
                             };
                         }
-#endif
+
                     }
                     
                     XTrace.Log.Debug($"Firewall info loaded for {firewallInfo.Count} ports");
@@ -134,7 +136,6 @@ public class PortScannerService
         });
     }
     
-#if WINDOWS
     private Task RefreshPortsWindowsAsync(List<PortInfo> newPorts, HashSet<(int Port, string Protocol)> processedPorts, Dictionary<(int Port, string Protocol), PortInfo> currentPorts)
     {
         // 一次性获取所有端口的进程信息（优化性能）
@@ -215,7 +216,7 @@ public class PortScannerService
         
         return Task.CompletedTask;
     }
-#else
+
     private Task RefreshPortsLinuxAsync(List<PortInfo> newPorts, HashSet<(int Port, string Protocol)> processedPorts, Dictionary<(int Port, string Protocol), PortInfo> currentPorts)
     {
         try
@@ -397,7 +398,7 @@ public class PortScannerService
             return null;
         }
     }
-#endif
+
 
     private Process? GetProcessForPort(int port)
     {
@@ -626,18 +627,19 @@ public class PortScannerService
     {
         var result = new Dictionary<int, (string ProcessName, string Command, string UserName)>();
         
-#if WINDOWS
-        try
+        if (OperatingSystem.IsWindows())
         {
-            // 使用 tasklist 获取所有进程信息
-            var startInfo = new ProcessStartInfo
+            try
             {
-                FileName = "tasklist",
-                Arguments = "/FO CSV /NH",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
+                // 使用 tasklist 获取所有进程信息
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "tasklist",
+                    Arguments = "/FO CSV /NH",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
 
             using var process = Process.Start(startInfo);
             if (process == null) return result;
@@ -690,13 +692,15 @@ public class PortScannerService
         {
             XTrace.Log.Error($"Error getting process info bulk on Windows: {ex.Message}");
         }
-#else
-        // Linux: 从 /proc 文件系统获取进程信息
-        try
+        }
+        else
         {
-            var procDirs = Directory.GetDirectories("/proc")
-                .Where(d => int.TryParse(Path.GetFileName(d), out _))
-                .ToList();
+            // Linux: 从 /proc 文件系统获取进程信息
+            try
+            {
+                var procDirs = Directory.GetDirectories("/proc")
+                    .Where(d => int.TryParse(Path.GetFileName(d), out _))
+                    .ToList();
             
             foreach (var procDir in procDirs)
             {
@@ -766,12 +770,11 @@ public class PortScannerService
         {
             XTrace.Log.Error($"Error getting process info from /proc on Linux: {ex.Message}");
         }
-#endif
+        }
 
         return result;
     }
     
-#if !WINDOWS
     /// <summary>
     /// 根据 UID 获取用户名 (Linux)
     /// </summary>
@@ -797,7 +800,7 @@ public class PortScannerService
         
         return uid.ToString();
     }
-#endif
+
 
     /// <summary>
     /// 解析 CSV 行
@@ -991,12 +994,13 @@ public class PortScannerService
     /// </summary>
     private string GetProcessUserName(Process process)
     {
-#if WINDOWS
-        try
+        if (OperatingSystem.IsWindows())
         {
-            // 使用 WMI 查询获取进程的用户名
-            var searcher = new System.Management.ManagementObjectSearcher(
-                $"SELECT * FROM Win32_Process WHERE ProcessId = {process.Id}");
+            try
+            {
+                // 使用 WMI 查询获取进程的用户名
+                var searcher = new System.Management.ManagementObjectSearcher(
+                    $"SELECT * FROM Win32_Process WHERE ProcessId = {process.Id}");
             
             foreach (System.Management.ManagementObject obj in searcher.Get())
             {
@@ -1022,50 +1026,51 @@ public class PortScannerService
         {
             XTrace.Log.Debug($"Error getting process user name: {ex.Message}");
         }
-#else
-        // Linux: 从 /proc/[pid]/status 读取进程用户
-        try
+        }
+        else
         {
-            var statusPath = $"/proc/{process.Id}/status";
-            if (File.Exists(statusPath))
+            // Linux: 从 /proc/[pid]/status 读取进程用户
+            try
             {
-                var lines = File.ReadAllLines(statusPath);
-                var uidLine = lines.FirstOrDefault(l => l.StartsWith("Uid:"));
-                if (uidLine != null)
+                var statusPath = $"/proc/{process.Id}/status";
+                if (File.Exists(statusPath))
                 {
-                    var parts = uidLine.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 2 && int.TryParse(parts[1], out var uid))
+                    var lines = File.ReadAllLines(statusPath);
+                    var uidLine = lines.FirstOrDefault(l => l.StartsWith("Uid:"));
+                    if (uidLine != null)
                     {
-                        // 尝试将 UID 转换为用户名
-                        try
+                        var parts = uidLine.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2 && int.TryParse(parts[1], out var uid))
                         {
-                            var userInfo = File.ReadAllText("/etc/passwd")
-                                .Split('\n')
-                                .Select(line => line.Split(':'))
-                                .FirstOrDefault(parts => parts.Length >= 3 && parts[2] == uid.ToString());
-                            
-                            if (userInfo != null)
+                            // 尝试将 UID 转换为用户名
+                            try
                             {
-                                return userInfo[0]; // 用户名
+                                var userInfo = File.ReadAllText("/etc/passwd")
+                                    .Split('\n')
+                                    .Select(line => line.Split(':'))
+                                    .FirstOrDefault(parts => parts.Length >= 3 && parts[2] == uid.ToString());
+                                
+                                if (userInfo != null)
+                                {
+                                    return userInfo[0]; // 用户名
+                                }
                             }
+                            catch { }
+                            
+                            return uid.ToString();
                         }
-                        catch { }
-                        
-                        return uid.ToString();
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                XTrace.Log.Debug($"Error getting process user name on Linux: {ex.Message}");
+            }
         }
-        catch (Exception ex)
-        {
-            XTrace.Log.Debug($"Error getting process user name on Linux: {ex.Message}");
-        }
-#endif
         
         return Environment.UserName;
     }
 
-#if !WINDOWS
     /// <summary>
     /// 读取符号链接目标路径 (Linux)
     /// </summary>
@@ -1097,6 +1102,6 @@ public class PortScannerService
             return null;
         }
     }
-#endif
+
 }
 

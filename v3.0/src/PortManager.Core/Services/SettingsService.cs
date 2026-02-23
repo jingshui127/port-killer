@@ -14,6 +14,8 @@ public class SettingsService
     private readonly string _settingsPath;
     private readonly ILogger<SettingsService>? _logger;
 
+    public string SettingsPath => _settingsPath;
+
     public SettingsService(ILogger<SettingsService>? logger = null)
     {
         _logger = logger;
@@ -41,7 +43,31 @@ public class SettingsService
             {
                 var json = File.ReadAllText(_settingsPath);
                 _logger?.LogDebug($"[SettingsService] Loaded JSON content: {json}");
-                return JsonSerializer.Deserialize<SettingsData>(json) ?? new SettingsData();
+                
+                // 检查文件内容是否为空或空白
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    _logger?.LogInformation("[SettingsService] Settings file is empty, creating new settings");
+                    return new SettingsData();
+                }
+                
+                // 尝试反序列化，如果失败则返回新的空设置
+                try
+                {
+                    var data = JsonSerializer.Deserialize<SettingsData>(json);
+                    if (data != null)
+                    {
+                        return data;
+                    }
+                }
+                catch (JsonException jsonEx)
+                {
+                    _logger?.LogWarning($"[SettingsService] Invalid JSON in settings file, creating new settings: {jsonEx.Message}");
+                }
+            }
+            else
+            {
+                _logger?.LogInformation("[SettingsService] Settings file does not exist, creating new settings");
             }
         }
         catch (Exception ex)

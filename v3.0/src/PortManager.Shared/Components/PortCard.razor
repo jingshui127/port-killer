@@ -1,0 +1,158 @@
+@using PortManager.Models
+@using PortManager.Services
+@inject TunnelService TunnelService
+
+<div class="port-card @(IsLightTheme ? "light" : "") @GetCardClasses()" @onclick="HandleSelect">
+    <div class="port-info">
+        <div class="port-header">
+            <div class="port-number">
+                <span class="value" title="@GetPortUsageDescription(PortNumber)">@PortNumber</span>
+                @if (HasBoth)
+                {
+                    <span class="protocol-badge both" title="同时支持 TCP 和 UDP">TCP+UDP</span>
+                }
+                else if (HasTcp)
+                {
+                    <span class="protocol-badge tcp">TCP</span>
+                }
+                else
+                {
+                    <span class="protocol-badge udp">UDP</span>
+                }
+                @((MarkupString)GetAccessDirectionArrow(PrimaryPort?.AccessDirection ?? PortAccessDirection.Unknown))
+            </div>
+            <div class="port-pid" title="@(PrimaryPort?.Pid > 0 ? $"PID: {PrimaryPort.Pid}" : "系统进程或无法获取")">
+                @if (IsSystemProcess)
+                {
+                    <span class="protected-badge" title="系统进程（受保护）">🛡️</span>
+                }
+                <span class="icon">@(PrimaryPort?.Pid > 0 ? "🔢" : "💻")</span>
+                <span class="text">@(PrimaryPort?.Pid > 0 ? PrimaryPort.Pid.ToString() : "-")</span>
+            </div>
+        </div>
+        <div class="port-details">
+            <div class="detail-row">
+                <div class="detail" title="@(PrimaryPort?.ProcessName ?? "Unknown")">
+                    <span class="icon">⚙</span>
+                    <span class="text text-truncate">@(PrimaryPort?.ProcessName ?? "Unknown")</span>
+                    @if (IsSystemProcess)
+                    {
+                        <span class="system-service-badge" title="@SystemServiceDescription">🛡️</span>
+                    }
+                </div>
+                <div class="detail" title="@(PrimaryPort?.Command ?? "-")">
+                    <span class="icon">📁</span>
+                    <span class="text text-truncate">@(PrimaryPort?.Command ?? "-")</span>
+                </div>
+            </div>
+            <div class="detail-row">
+                <div class="detail" title="@(PrimaryPort?.Address ?? "-")">
+                    <span class="icon">📍</span>
+                    <span class="text text-truncate">@(PrimaryPort?.Address ?? "-")</span>
+                </div>
+                <div class="detail" title="@(PrimaryPort?.User ?? "-")">
+                    <span class="icon">👤</span>
+                    <span class="text">@(PrimaryPort?.User ?? "-")</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="port-actions">
+        <button class="btn-icon @(PrimaryPort?.IsFavorite == true ? "favorite" : "")" @onclick="HandleToggleFavorite" @onclick:stopPropagation title="收藏">
+            <span>@(PrimaryPort?.IsFavorite == true ? "★" : "☆")</span>
+        </button>
+        <button class="btn-icon @(PrimaryPort?.IsWatched == true ? "watched" : "")" @onclick="HandleToggleWatch" @onclick:stopPropagation title="监控">
+            <span>@(PrimaryPort?.IsWatched == true ? "👁" : "👁")</span>
+        </button>
+        <button class="btn-icon btn-tunnel @(HasTunnel ? "active" : "")" @onclick="HandleCreateTunnel" @onclick:stopPropagation title="@(HasTunnel ? "已创建隧道" : "创建隧道")">
+            <span>@(HasTunnel ? "🔗" : "🌐")</span>
+        </button>
+        <button class="btn-icon btn-info" @onclick="HandleShowDetails" @onclick:stopPropagation title="查看详情">
+            <span>ℹ</span>
+        </button>
+        <button class="btn-icon btn-danger" @onclick="HandleKillPort" @onclick:stopPropagation title="终止">
+            <span>✕</span>
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int PortNumber { get; set; }
+    [Parameter] public PortInfo? TcpPort { get; set; }
+    [Parameter] public PortInfo? UdpPort { get; set; }
+    [Parameter] public bool IsSelected { get; set; }
+    [Parameter] public bool IsSystemProcess { get; set; }
+    [Parameter] public bool IsLightTheme { get; set; }
+    [Parameter] public string SystemServiceDescription { get; set; } = "";
+    [Parameter] public Func<int, string> GetPortUsageDescription { get; set; } = _ => "";
+    [Parameter] public Func<PortAccessDirection, string> GetAccessDirectionArrow { get; set; } = _ => "";
+    
+    [Parameter] public EventCallback<int> OnToggleFavorite { get; set; }
+    [Parameter] public EventCallback<int> OnToggleWatch { get; set; }
+    [Parameter] public EventCallback<int> OnCreateTunnel { get; set; }
+    [Parameter] public EventCallback<PortInfo> OnShowDetails { get; set; }
+    [Parameter] public EventCallback<int> OnKillPort { get; set; }
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+
+    private PortInfo? PrimaryPort => TcpPort ?? UdpPort;
+    private bool HasTcp => TcpPort != null;
+    private bool HasUdp => UdpPort != null;
+    private bool HasBoth => HasTcp && HasUdp;
+    private bool HasTunnel => TunnelService.HasTunnelForPort(PortNumber);
+
+    private string GetCardClasses()
+    {
+        var classes = new List<string>();
+        if (PrimaryPort?.IsActive == true) classes.Add("active");
+        if (IsSelected) classes.Add("selected");
+        if (HasTunnel) classes.Add("has-tunnel");
+        return string.Join(" ", classes);
+    }
+
+    private string GetStatusClass()
+    {
+        if (IsSystemProcess) return "protected";
+        if (PrimaryPort?.Pid > 0) return "occupied";
+        return "available";
+    }
+
+    private string GetStatusTitle()
+    {
+        if (IsSystemProcess) return "系统进程（受保护）";
+        if (PrimaryPort?.Pid > 0) return "端口被占用";
+        return "端口可用";
+    }
+
+    private async Task HandleSelect()
+    {
+        await OnSelect.InvokeAsync(PortNumber);
+    }
+
+    private async Task HandleToggleFavorite(MouseEventArgs e)
+    {
+        await OnToggleFavorite.InvokeAsync(PortNumber);
+    }
+
+    private async Task HandleToggleWatch(MouseEventArgs e)
+    {
+        await OnToggleWatch.InvokeAsync(PortNumber);
+    }
+
+    private async Task HandleCreateTunnel(MouseEventArgs e)
+    {
+        await OnCreateTunnel.InvokeAsync(PortNumber);
+    }
+
+    private async Task HandleShowDetails(MouseEventArgs e)
+    {
+        if (PrimaryPort != null)
+        {
+            await OnShowDetails.InvokeAsync(PrimaryPort);
+        }
+    }
+
+    private async Task HandleKillPort(MouseEventArgs e)
+    {
+        await OnKillPort.InvokeAsync(PortNumber);
+    }
+}

@@ -1,0 +1,283 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0/linux-x64",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {},
+    ".NETCoreApp,Version=v10.0/linux-x64": {
+      "PortManager.Web/3.0.2026.0223": {
+        "dependencies": {
+          "Masa.Blazor": "1.11.9",
+          "PortManager.Core": "1.0.0",
+          "PortManager.Shared": "1.0.0",
+          "System.Management": "10.0.3"
+        },
+        "runtime": {
+          "PortManager.Web.dll": {}
+        }
+      },
+      "BemIt/2.2.0": {
+        "runtime": {
+          "lib/net8.0/BemIt.dll": {
+            "assemblyVersion": "2.2.0.0",
+            "fileVersion": "2.2.0.0"
+          }
+        }
+      },
+      "DeepCloner.Core/0.1.0": {
+        "runtime": {
+          "lib/net8.0/DeepCloner.Core.dll": {
+            "assemblyVersion": "0.1.0.0",
+            "fileVersion": "0.1.0.0"
+          }
+        }
+      },
+      "FluentValidation/11.4.0": {
+        "runtime": {
+          "lib/net7.0/FluentValidation.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.4.0.0"
+          }
+        }
+      },
+      "FluentValidation.DependencyInjectionExtensions/11.4.0": {
+        "dependencies": {
+          "FluentValidation": "11.4.0"
+        },
+        "runtime": {
+          "lib/netstandard2.1/FluentValidation.DependencyInjectionExtensions.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.4.0.0"
+          }
+        }
+      },
+      "Masa.Blazor/1.11.9": {
+        "dependencies": {
+          "BemIt": "2.2.0",
+          "DeepCloner.Core": "0.1.0",
+          "FluentValidation": "11.4.0",
+          "FluentValidation.DependencyInjectionExtensions": "11.4.0",
+          "OneOf": "3.0.223",
+          "Util.Reflection": "1.0.3"
+        },
+        "runtime": {
+          "lib/net9.0/Masa.Blazor.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "NewLife.Core/11.11.2026.201": {
+        "runtime": {
+          "lib/net10.0/NewLife.Core.dll": {
+            "assemblyVersion": "11.11.2026.201",
+            "fileVersion": "11.11.2026.201"
+          }
+        }
+      },
+      "NewLife.Remoting/3.7.2026.201": {
+        "dependencies": {
+          "NewLife.Core": "11.11.2026.201"
+        },
+        "runtime": {
+          "lib/net10.0/NewLife.Remoting.dll": {
+            "assemblyVersion": "3.7.2026.201",
+            "fileVersion": "3.7.2026.201"
+          }
+        }
+      },
+      "NewLife.Stardust/3.7.2026.201": {
+        "dependencies": {
+          "NewLife.Core": "11.11.2026.201",
+          "NewLife.Remoting": "3.7.2026.201"
+        },
+        "runtime": {
+          "lib/net10.0/Stardust.dll": {
+            "assemblyVersion": "3.7.2026.201",
+            "fileVersion": "3.7.2026.201"
+          }
+        }
+      },
+      "NewLife.Stardust.Extensions/3.7.2026.201": {
+        "dependencies": {
+          "NewLife.Stardust": "3.7.2026.201"
+        },
+        "runtime": {
+          "lib/net10.0/Stardust.Extensions.dll": {
+            "assemblyVersion": "3.7.2026.201",
+            "fileVersion": "3.7.2026.201"
+          }
+        }
+      },
+      "OneOf/3.0.223": {
+        "runtime": {
+          "lib/netstandard2.0/OneOf.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "System.CodeDom/10.0.3": {
+        "runtime": {
+          "lib/net10.0/System.CodeDom.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.326.7603"
+          }
+        }
+      },
+      "System.Management/10.0.3": {
+        "dependencies": {
+          "System.CodeDom": "10.0.3"
+        },
+        "runtime": {
+          "lib/net10.0/System.Management.dll": {
+            "assemblyVersion": "10.0.0.3",
+            "fileVersion": "10.0.326.7603"
+          }
+        }
+      },
+      "Util.Reflection/1.0.3": {
+        "runtime": {
+          "lib/net6.0/Util.Reflection.dll": {
+            "assemblyVersion": "1.0.3.0",
+            "fileVersion": "1.0.3.0"
+          }
+        }
+      },
+      "PortManager.Core/1.0.0": {
+        "dependencies": {
+          "NewLife.Stardust.Extensions": "3.7.2026.201",
+          "System.Management": "10.0.3"
+        },
+        "runtime": {
+          "PortManager.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "PortManager.Shared/1.0.0": {
+        "dependencies": {
+          "Masa.Blazor": "1.11.9",
+          "PortManager.Core": "1.0.0"
+        },
+        "runtime": {
+          "PortManager.Shared.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "PortManager.Web/3.0.2026.0223": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "BemIt/2.2.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-oSrFyB/9fvxKVEqwoMjHmxDSnEFiTjyxIFjdOEyXmc/4YVXoEiYhxrNhNA4B/4lAfAMQBVcOWXdllZ+bSkWNqg==",
+      "path": "bemit/2.2.0",
+      "hashPath": "bemit.2.2.0.nupkg.sha512"
+    },
+    "DeepCloner.Core/0.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-45ovZyLKECJUeyMqxp8QDc7D85lUhDfaSgu0d7W9o8GU1PdePKy9sAVh+4tlXqt3PyXnTRRU42Ta+iRssbLarw==",
+      "path": "deepcloner.core/0.1.0",
+      "hashPath": "deepcloner.core.0.1.0.nupkg.sha512"
+    },
+    "FluentValidation/11.4.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-WZJyrNf4suiaI6avVG32W9kmBLC3+V5rDTcLeRJjeU4tDmTyDIOz1459DzCKppXs34YpZg9rCUzDY3M4XxG7Ug==",
+      "path": "fluentvalidation/11.4.0",
+      "hashPath": "fluentvalidation.11.4.0.nupkg.sha512"
+    },
+    "FluentValidation.DependencyInjectionExtensions/11.4.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-iZXtoDqfRnggHwIbFWnK1sFs3KlTadH5ezNDiXz411OSkUNowBRboaZBcSvx4gEot7CNZdoReUKWYJwow2+mbg==",
+      "path": "fluentvalidation.dependencyinjectionextensions/11.4.0",
+      "hashPath": "fluentvalidation.dependencyinjectionextensions.11.4.0.nupkg.sha512"
+    },
+    "Masa.Blazor/1.11.9": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-6HJ/5HT5JxP73uc0mCKcbtSoLgu1Qgpu3FqONKpB43M+Kq8N+kzwXDB5VlcZ4JY2CYqhs5kedF0A5HwqAbVWlQ==",
+      "path": "masa.blazor/1.11.9",
+      "hashPath": "masa.blazor.1.11.9.nupkg.sha512"
+    },
+    "NewLife.Core/11.11.2026.201": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-KmLUkn3wduhMJDZTzRip2FJt8ARw+Qrh2J5bmzxU9ixZTZAExuhklgb6Xuo93XrlE9GPl2MxKrghNYsaTYW0Fg==",
+      "path": "newlife.core/11.11.2026.201",
+      "hashPath": "newlife.core.11.11.2026.201.nupkg.sha512"
+    },
+    "NewLife.Remoting/3.7.2026.201": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-plnDdtviC++1IP9AkMoXgCaAiFjjpyTR/9xY90craoQ6p4k0xoFhHJjCkVgWlKwmCpoJtdV/ttgh20ZgLmD/sg==",
+      "path": "newlife.remoting/3.7.2026.201",
+      "hashPath": "newlife.remoting.3.7.2026.201.nupkg.sha512"
+    },
+    "NewLife.Stardust/3.7.2026.201": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-ugcitLdJn8h/nRO8NUh3XBZKBSPkWd55jqrrBRw6mwGRsKpW6+xpdQt+fRAwWvj/sRbN7XjylPKu4pFHZRvw6g==",
+      "path": "newlife.stardust/3.7.2026.201",
+      "hashPath": "newlife.stardust.3.7.2026.201.nupkg.sha512"
+    },
+    "NewLife.Stardust.Extensions/3.7.2026.201": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-3m+QumizJLdXX+JkhYZxtRivwIOgv9sa1WUqfbfvEAU1yF7CtKuNfI25FeBg6WTbWj6wZwEcSr2r4pG+dabSVg==",
+      "path": "newlife.stardust.extensions/3.7.2026.201",
+      "hashPath": "newlife.stardust.extensions.3.7.2026.201.nupkg.sha512"
+    },
+    "OneOf/3.0.223": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-YWabiHBFfDdKIO7/TEa72mARVVo5u5FqFnfXuTqjIupMvJlhoH8d0m4uKtczaINuT0vGR1qlXJayeU6bTw5myg==",
+      "path": "oneof/3.0.223",
+      "hashPath": "oneof.3.0.223.nupkg.sha512"
+    },
+    "System.CodeDom/10.0.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-+G1mBhHJp8taiDcHK1gmckOZ884n9JeIrS1dzFYZhSa8oTiIF+EagIyAyCOQzdBbbES7eb9AkjGBlUZqqoCaeg==",
+      "path": "system.codedom/10.0.3",
+      "hashPath": "system.codedom.10.0.3.nupkg.sha512"
+    },
+    "System.Management/10.0.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-VyK/nnG1ZgwP/wY8HGrNrdha7kenyI+bkfE0miywiRaWVwqtenuYshA6pmP6Xm7lPsTE2ZRZ+BkzmUVg/VZtTg==",
+      "path": "system.management/10.0.3",
+      "hashPath": "system.management.10.0.3.nupkg.sha512"
+    },
+    "Util.Reflection/1.0.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-uKQLJZ9KKXvQ6JYLbOCISyBpssmBAX4HGXhmTifRsD/kD1E4bZYyivwDqBvTleNIE1/tmj/XhapsukxKNQEK5A==",
+      "path": "util.reflection/1.0.3",
+      "hashPath": "util.reflection.1.0.3.nupkg.sha512"
+    },
+    "PortManager.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "PortManager.Shared/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

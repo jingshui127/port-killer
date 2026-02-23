@@ -1,0 +1,37 @@
+.tunnel-card {
+    transition: all 0.3s ease;
+    border: 1px solid var(--m-border-color);
+}
+
+.tunnel-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+.tunnel-card.light {
+    background: #ffffff;
+    border-color: #e0e0e0;
+}
+
+.tunnel-card.light:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 链接样式 */
+.tunnel-card a {
+    transition: color 0.2s ease;
+}
+
+.tunnel-card a:hover {
+    text-decoration: underline !important;
+}
+
+/* 按钮悬停效果 */
+.tunnel-card ::deep .m-btn--icon:hover {
+    background-color: var(--m-primary-color-4) !important;
+}
+
+/* 状态标签样式 */
+.tunnel-card ::deep .m-chip {
+    font-weight: 500;
+}
