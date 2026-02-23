@@ -43,13 +43,16 @@ h1:focus {
 
 .provider-dialog .dialog-description {
     margin-bottom: 1.5rem;
-    color: #666;
+    color: #808080;
     text-align: center;
+    font-weight: 500;
+    font-size: 1.05rem;
 }
 
 .provider-dialog .dialog-description strong {
-    color: #333;
+    color: #2196F3;
     font-size: 1.2em;
+    font-weight: 700;
 }
 
 .provider-options {
@@ -92,15 +95,16 @@ h1:focus {
 }
 
 .provider-name {
-    font-weight: 600;
-    font-size: 1.1rem;
-    color: #333;
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: #000;
     margin-bottom: 0.25rem;
 }
 
 .provider-desc {
-    font-size: 0.85rem;
-    color: #666;
+    font-size: 0.95rem;
+    color: #555;
+    font-weight: 500;
 }
 
 .install-hint {
@@ -143,7 +147,8 @@ h1:focus {
 
 .dark-theme .provider-dialog .modal-header h3 {
     color: #fff !important;
-    font-weight: 600;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 
 .dark-theme .provider-dialog .modal-body {
@@ -151,36 +156,41 @@ h1:focus {
 }
 
 .dark-theme .provider-option {
-    background: #2d2d2d;
-    border-color: #555;
+    background: #2d2d2d !important;
+    border-color: #555 !important;
 }
 
 .dark-theme .provider-option:hover {
-    border-color: #64b5f6;
-    background: #3d3d3d;
+    border-color: #64b5f6 !important;
+    background: #3d3d3d !important;
 }
 
 .dark-theme .provider-option.selected {
-    border-color: #64b5f6;
-    background: #1e3a5f;
+    border-color: #64b5f6 !important;
+    background: #1e3a5f !important;
 }
 
 .dark-theme .provider-name {
     color: #fff !important;
-    font-weight: 600;
+    font-weight: 700;
+    font-size: 1.15rem;
 }
 
 .dark-theme .provider-desc {
-    color: #bbb !important;
+    color: #e0e0e0 !important;
+    font-weight: 500;
 }
 
 .dark-theme .dialog-description {
-    color: #ddd !important;
+    color: #808080 !important;
+    font-weight: 500;
+    font-size: 1.05rem;
 }
 
 .dark-theme .dialog-description strong {
-    color: #fff !important;
+    color: #64b5f6 !important;
     font-weight: 700;
+    font-size: 1.2em;
 }
 
 .dark-theme .install-hint {
