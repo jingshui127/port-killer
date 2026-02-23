@@ -1,4 +1,4 @@
-# PortManager v3.0
+# PortManager v3.1
 
 <p align="center">
   <img src="v3.0/src/PortManager.Web/wwwroot/appicon.svg" alt="PortManager Icon" width="128" height="128">
@@ -106,13 +106,14 @@ Download `.zip` from [GitHub Releases](https://github.com/jingshui127/port-kille
 - 📤 **Data Export**: Export port data to CSV or JSON format
 - 🎨 **Dual Platform**: Both Web and WinForms desktop versions available
 
-### Cloudflare Tunnels
-- ☁️ **Tunnel Management**: Create and manage Cloudflare Tunnel connections
+### Tunnel Management
+- ☁️ **Multiple Providers**: Support for both Cloudflare and LocalTunnel
 - 🌐 **Quick Access**: One-click expose local ports to the internet
 - 🚀 **Auto-start**: Automatically restore tunnels on application startup
 - 📊 **Tunnel Status**: Real-time tunnel status and URL display
-- 🔄 **Restart Support**: Stop and restart tunnels
+- 🔄 **Restart Support**: Stop and restart tunnels with provider preserved
 - 💾 **Persistence**: Tunnel information saved locally, auto-recover after restart
+- 🎨 **Visual Distinction**: Color-coded cards for different tunnel providers
 
 ### User Interface
 - 🌓 **Theme Support**: Dark and light theme switching
@@ -164,25 +165,34 @@ Download `.zip` from [GitHub Releases](https://github.com/jingshui127/port-kille
    - Kill all selected processes
    - Add all to favorites
 
-### Cloudflare Tunnels
+### Tunnels
 
 #### Creating a Tunnel
 1. Navigate to the "Tunnels" page, or click the "Tunnel Management" card on the home page
-2. Click the "Create Tunnel" button
+2. Choose your tunnel provider:
+   - **Cloudflare** (Purple button): Requires Cloudflared installed
+   - **LocalTunnel** (Green button): Uses npx/Node.js, no additional installation required
 3. Enter the port number and tunnel name (optional)
-4. Click "Create" to start the tunnel
+4. Click the provider button to start the tunnel
 5. Wait for the tunnel URL to be generated, then click the copy button to copy the URL
 
 #### Managing Tunnels
 - **Stop Tunnel**: Click the stop button to terminate a tunnel
-- **Restart Tunnel**: Click the restart button to recreate a tunnel
+- **Restart Tunnel**: Click the restart button to recreate a tunnel (provider is preserved)
 - **Copy URL**: Click the copy button to copy the tunnel URL to clipboard
 - **View Status**: Real-time view of tunnel running status and uptime
+- **Delete Tunnel**: For stopped tunnels, click the delete button to remove from list
 
-#### Prerequisites
+#### Cloudflare Prerequisites
 1. Download and install Cloudflared from [Cloudflare's website](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/)
 2. Ensure `cloudflared` is accessible in your system PATH
 3. The application will automatically detect Cloudflared installation
+
+#### LocalTunnel Notes
+- Requires Node.js and npm/npx installed on your system
+- Tunnel password is your public IP address (automatically fetched)
+- First-time visitors will see a password verification page
+- Free service with some limitations (speed, availability)
 
 ### Notifications
 

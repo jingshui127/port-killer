@@ -1,4 +1,4 @@
-# PortManager v3.0 (端口管理器)
+# PortManager v3.1 (端口管理器)
 
 <p align="center">
   <img src="v3.0/src/PortManager.Web/wwwroot/appicon.svg" alt="PortManager 图标" width="128" height="128">
@@ -12,12 +12,12 @@
 
 <p align="center">
   一款强大的跨平台端口管理工具，专为开发者设计。<br>
-  监控端口、集成Cloudflare隧道、一键终止进程。
+  监控端口、集成多种隧道服务、一键终止进程。
 </p>
 
 ## 关于
 
-PortManager (端口管理器) 是一款由 **科控物联** 开发的强大跨平台端口管理工具。v3.0 版本采用 MASA Blazor 进行了完整的 UI 重设计，为 Windows 系统上的网络端口、进程和 Cloudflare 隧道的监控、管理和控制提供了现代化的响应式界面。
+PortManager (端口管理器) 是一款由 **科控物联** 开发的强大跨平台端口管理工具。v3.1 版本在 v3.0 基础上增加了 LocalTunnel 支持，为 Windows 系统上的网络端口、进程和多种隧道服务的监控、管理和控制提供了现代化的响应式界面。
 
 ### 开发者信息
 - **团队**: 科控物联
@@ -106,13 +106,14 @@ dotnet build -c Release
 - 📤 **数据导出**: 将端口数据导出为 CSV 或 JSON 格式
 - 🎨 **双平台**: 同时提供 Web 和 WinForms 桌面版本
 
-### Cloudflare 隧道
-- ☁️ **隧道管理**: 创建和管理Cloudflare隧道连接
+### 隧道管理
+- ☁️ **多提供商支持**: 支持 Cloudflare 和 LocalTunnel 两种隧道服务
 - 🌐 **快速访问**: 一键将本地端口暴露到公网
 - 🚀 **自动启动**: 应用程序启动时自动恢复隧道
 - 📊 **隧道状态**: 实时查看隧道运行状态和URL
-- 🔄 **重启支持**: 支持停止和重启隧道
+- 🔄 **重启支持**: 支持停止和重启隧道，保持原有提供商
 - 💾 **持久化**: 隧道信息保存到本地，重启后自动恢复
+- 🎨 **视觉区分**: 不同隧道提供商使用不同颜色标识
 
 ### 用户界面
 - 🌓 **主题支持**: 深色和浅色主题切换
@@ -164,25 +165,34 @@ dotnet build -c Release
    - 终止所有选中的进程
    - 将所有添加到收藏
 
-### Cloudflare 隧道
+### 隧道管理
 
 #### 创建隧道
 1. 导航到"隧道"页面，或点击主页"隧道管理"卡片
-2. 点击"创建隧道"按钮
+2. 选择隧道提供商：
+   - **Cloudflare**（紫色按钮）：需要安装 Cloudflared
+   - **LocalTunnel**（绿色按钮）：使用 npx/Node.js，无需额外安装
 3. 输入端口号和隧道名称（可选）
-4. 点击"创建"启动隧道
+4. 点击对应提供商按钮启动隧道
 5. 等待隧道URL生成，点击复制按钮复制URL
 
 #### 管理隧道
 - **停止隧道**: 点击停止按钮终止隧道
-- **重启隧道**: 点击重启按钮重新创建隧道
+- **重启隧道**: 点击重启按钮重新创建隧道（保持原有提供商）
 - **复制URL**: 点击复制按钮复制隧道URL到剪贴板
 - **查看状态**: 实时查看隧道的运行状态和运行时间
+- **删除隧道**: 对于已停止的隧道，点击删除按钮从列表中移除
 
-#### 前提条件
+#### Cloudflare 前提条件
 1. 从 [Cloudflare官网](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/) 下载并安装 Cloudflared
 2. 确保 `cloudflared.exe` 在系统 PATH 中可访问
 3. 应用程序将自动检测 Cloudflared 安装
+
+#### LocalTunnel 说明
+- 需要系统已安装 Node.js 和 npm/npx
+- 隧道密码是您的公网IP地址（自动获取）
+- 首次访问者将看到密码验证页面
+- 免费服务，有一定限制（速度、可用性）
 
 ### 通知
 
